@@ -1,0 +1,31 @@
+{
+  "name": "tubegram",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "summarize": "tsx scripts/summarize-once.ts",
+    "webhook": "tsx scripts/set-webhook.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "tsx scripts/check.ts",
+    "bot": "tsx scripts/simulate.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.22.0",
+    "@supabase/supabase-js": "^2.116.0",
+    "fast-xml-parser": "^5.11.1",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  }
+}

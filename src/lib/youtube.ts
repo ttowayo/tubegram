@@ -191,6 +191,53 @@ export async function fetchChannelFeed(channelId: string): Promise<FeedEntry[]> 
   return parseFeedXml(await res.text());
 }
 
+/**
+ * 채널 최신 영상 목록. RSS 를 2회 시도하고, 실패하면 Data API 업로드 재생목록으로 대체.
+ * (유튜브 RSS 가 간헐적으로 404 를 반환함)
+ */
+export async function fetchChannelUploads(channelId: string): Promise<FeedEntry[]> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchChannelFeed(channelId);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  if (env.youtubeApiKey) {
+    try {
+      return await fetchUploadsViaApi(channelId);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function fetchUploadsViaApi(channelId: string): Promise<FeedEntry[]> {
+  const playlistId = "UU" + channelId.slice(2);
+  const data = await ytApi<{ items?: YtPlaylistItem[] }>("playlistItems", {
+    part: "snippet,contentDetails",
+    playlistId,
+    maxResults: "15",
+  });
+  return (data.items ?? [])
+    .map((it) => ({
+      videoId: it.contentDetails?.videoId ?? "",
+      title: it.snippet?.title ?? "",
+      channelId,
+      channelTitle: it.snippet?.channelTitle ?? "",
+      publishedAt: it.contentDetails?.videoPublishedAt ?? it.snippet?.publishedAt ?? "",
+      updatedAt: it.snippet?.publishedAt ?? "",
+    }))
+    .filter((e) => ID_RE.test(e.videoId) && e.publishedAt);
+}
+
+interface YtPlaylistItem {
+  snippet?: { title?: string; channelTitle?: string; publishedAt?: string };
+  contentDetails?: { videoId?: string; videoPublishedAt?: string };
+}
+
 export function parseFeedXml(xml: string): FeedEntry[] {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
   const doc = parser.parse(xml) as { feed?: { entry?: unknown } };

@@ -17,6 +17,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <nav>
               <Link href="/">오늘</Link>
               <Link href="/c">채널</Link>
+              <Link href="/today">오늘 영상</Link>
               <Link href="/register">등록</Link>
             </nav>
           </div>

@@ -1,5 +1,5 @@
 import { db, type ChannelRow } from "./supabase";
-import { fetchChannelFeed, type FeedEntry } from "./youtube";
+import { fetchChannelUploads, type FeedEntry } from "./youtube";
 import { enqueueVideo, processQueue } from "./pipeline";
 
 export interface PollResult {
@@ -25,7 +25,7 @@ export async function pollChannels(budgetMs?: number): Promise<PollResult> {
     if (!subscribed.has(ch.channel_id)) continue;
     checked++;
     try {
-      const entries = await fetchChannelFeed(ch.channel_id);
+      const entries = await fetchChannelUploads(ch.channel_id);
       enqueued += await enqueueNewEntries(ch, entries);
       await s.from("channels").update({ last_checked_at: new Date().toISOString() }).eq("id", ch.id);
     } catch (e) {

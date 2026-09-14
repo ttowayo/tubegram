@@ -142,7 +142,7 @@ h2 { font-size: 1.1rem; margin: 24px 0 8px; }
 
 form.register { display: flex; flex-direction: column; gap: 12px; max-width: 520px; }
 form.register label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
-form.register input {
+form.register input, form.register select {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -314,3 +314,12 @@ a.cal-cell:hover { text-decoration: none; border-color: var(--accent); }
 a.page-link:hover { text-decoration: none; border-color: var(--accent); }
 .page-link.current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .page-link.disabled { opacity: 0.35; }
+
+.notice {
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0 20px;
+}
+.notice p { margin: 4px 0; }

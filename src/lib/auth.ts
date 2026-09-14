@@ -25,10 +25,10 @@ export function cookieToken(cookieHeader: string | null): string | null {
   return null;
 }
 
-/** 인증 성공 시 1년짜리 쿠키 저장 */
+/** 인증 성공 시 7일짜리 쿠키 저장 */
 export function authCookieHeader(req: Request): string {
   const secure = new URL(req.url).protocol === "https:" ? "; Secure" : "";
-  return `${AUTH_COOKIE}=${encodeURIComponent(env.registerToken)}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax${secure}`;
+  return `${AUTH_COOKIE}=${encodeURIComponent(env.registerToken)}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax${secure}`;
 }
 
 /** 303 리다이렉트 + (인증 성공 시) 쿠키 설정 */

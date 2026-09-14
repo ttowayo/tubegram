@@ -61,7 +61,7 @@ npm run summarize -- https://www.youtube.com/watch?v=XXXXXXXXXXX --send   # 텔�
 3. **cron-job.org** 에서 15분 주기 작업 생성:
    - URL: `https://<APP_URL>/api/poll`
    - Header: `Authorization: Bearer <CRON_SECRET>` (또는 `?secret=<CRON_SECRET>`)
-   - 타임아웃은 최대치로 (요약 처리까지 한 호출에서 수행)
+   - 응답은 즉시 202 로 오고 실제 처리는 서버에서 이어지므로 타임아웃 설정은 기본값이면 됩니다. 결과를 직접 보려면 `?sync=1` 을 붙여 호출하세요.
 4. Vercel Cron 은 `vercel.json` 에 이미 정의되어 있습니다 (매일 09:05 KST). Vercel 이 `CRON_SECRET` 환경 변수를 자동으로 Bearer 로 보냅니다.
 
 ### 6. 사용

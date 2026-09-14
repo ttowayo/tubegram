@@ -36,6 +36,7 @@ async function main() {
       { command: "unsubscribe", description: "구독 해지" },
       { command: "list", description: "구독 목록" },
       { command: "latest", description: "채널 최신 영상 요약" },
+      { command: "today", description: "구독 채널의 오늘 영상 모두 요약" },
       { command: "status", description: "큐/사용량 현황" },
       { command: "pause", description: "알림 일시정지" },
       { command: "resume", description: "알림 재개" },

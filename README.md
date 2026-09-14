@@ -73,6 +73,7 @@ npm run summarize -- https://www.youtube.com/watch?v=XXXXXXXXXXX --send   # 텔�
 /unsubscribe 1            구독 해지 (/list 의 번호, @핸들, URL)
 /list                     구독 목록
 /latest @채널핸들         최신 영상 1편 즉시 요약
+/today [@채널핸들]        구독 채널에서 오늘 올라온 영상 모두 요약
 /status                   큐와 오늘 사용량
 /pause /resume            채널 알림 일시정지/재개
 <유튜브 URL>              바로 요약

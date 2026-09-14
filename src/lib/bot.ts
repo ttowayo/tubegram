@@ -3,7 +3,7 @@ import { db, type ChannelRow } from "./supabase";
 import { kstDate, formatKst } from "./date";
 import { escapeHtml, sendMessage, formatSummaryMessage, type TelegramUpdate } from "./telegram";
 import { extractVideoId, fetchChannelFeed, parseChannelRef, resolveChannel } from "./youtube";
-import { enqueueVideo, getSummary } from "./pipeline";
+import { deliverSummary, enqueueVideo, getSummary } from "./pipeline";
 import { websubRequest } from "./websub";
 
 const HELP = `<b>tubegram 봇 사용법</b>
@@ -14,6 +14,7 @@ const HELP = `<b>tubegram 봇 사용법</b>
 /unsubscribe &lt;채널&gt; - 구독 해지
 /list - 구독 목록
 /latest &lt;채널&gt; - 채널 최신 영상 1편 요약
+/today [채널] - 구독 채널에서 오늘 올라온 영상 모두 요약
 /pause - 알림 일시정지
 /resume - 알림 재개
 /status - 큐/사용량 현황
@@ -56,6 +57,8 @@ export async function handleUpdate(update: TelegramUpdate): Promise<{ process: b
         return { process: false };
       case "/latest":
         return { process: await latest(chatId, arg) };
+      case "/today":
+        return { process: await today(chatId, arg) };
       case "/pause":
         await db().from("chats").update({ is_active: false }).eq("chat_id", chatId);
         await sendMessage(chatId, "⏸ 채널 알림을 일시정지했습니다. /resume 으로 재개합니다. (직접 보낸 URL 요약은 계속 동작)");
@@ -257,6 +260,73 @@ async function latest(chatId: number, arg: string): Promise<boolean> {
   const e = feed[0];
   await sendMessage(chatId, `📥 최신 영상 접수: ${escapeHtml(e.title)}`, { disablePreview: true });
   return manualUrl(chatId, e.videoId);
+}
+
+/** 구독 채널(또는 지정 채널)에서 오늘(KST) 올라온 영상을 모두 큐에 넣음 */
+async function today(chatId: number, arg: string): Promise<boolean> {
+  let channels: ChannelRow[];
+  if (arg) {
+    const one = await findSubscribedChannel(chatId, arg);
+    if (!one) {
+      await sendMessage(chatId, "구독 목록에서 해당 채널을 찾지 못했습니다. /list 로 확인해 주세요.");
+      return false;
+    }
+    channels = [one];
+  } else {
+    channels = await subscribedChannels(chatId);
+    if (channels.length === 0) {
+      await sendMessage(chatId, "구독 중인 채널이 없습니다. /subscribe @채널핸들 로 추가하세요.");
+      return false;
+    }
+  }
+
+  const todayKst = kstDate();
+  let queued = 0;
+  let already = 0;
+  const lines: string[] = [];
+  for (const ch of channels) {
+    let entries;
+    try {
+      entries = await fetchChannelFeed(ch.channel_id);
+    } catch {
+      lines.push(`⚠️ ${escapeHtml(ch.title)}: 피드를 읽지 못했습니다`);
+      continue;
+    }
+    const todays = entries.filter((e) => kstDate(new Date(e.publishedAt)) === todayKst);
+    if (todays.length === 0) continue;
+    for (const e of todays) {
+      const { video } = await enqueueVideo({
+        youtubeId: e.videoId,
+        source: "channel",
+        channelId: ch.channel_id,
+        channelTitle: ch.title,
+        title: e.title,
+        publishedAt: e.publishedAt,
+        requestedByChatId: chatId,
+      });
+      if (video.status === "done") {
+        const summary = await getSummary(video.id);
+        if (summary) await deliverSummary(video, summary.content);
+        already++;
+      } else if (video.status === "pending") {
+        queued++;
+      }
+    }
+    lines.push(`• ${escapeHtml(ch.title)}: ${todays.length}편`);
+  }
+
+  if (lines.length === 0) {
+    await sendMessage(chatId, `오늘(${todayKst}) 올라온 영상이 없습니다.`);
+    return false;
+  }
+  await sendMessage(
+    chatId,
+    `📅 오늘(${todayKst}) 올라온 영상\n${lines.join("\n")}\n\n` +
+      `새로 접수 ${queued}편${already ? `, 이미 요약된 ${already}편은 바로 전송` : ""}` +
+      (queued ? "\n요약이 끝나는 대로 보내드립니다. 쇼츠/라이브는 건너뜁니다." : ""),
+    { disablePreview: true },
+  );
+  return queued > 0;
 }
 
 async function status(chatId: number): Promise<void> {

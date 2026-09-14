@@ -45,15 +45,7 @@ export function SummaryCard({ video, content, backTo }: Props) {
             <span key={i}>{i > 0 && " · "}{m}</span>
           ))}
         </div>
-        {content?.one_liner && <p className="one-liner">{content.one_liner}</p>}
-        {content && content.key_points.length > 0 && (
-          <ul>
-            {content.key_points.slice(0, 3).map((p, i) => <li key={i}>{p}</li>)}
-            {content.key_points.length > 3 && (
-              <li className="muted"><Link href={href}>+ {content.key_points.length - 3}개 더 보기</Link></li>
-            )}
-          </ul>
-        )}
+        {content?.conclusion && <p className="one-liner">{content.conclusion}</p>}
       </div>
     </article>
   );

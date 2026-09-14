@@ -26,7 +26,7 @@ export function SummaryCard({ video, content, backTo }: Props) {
         : <span key="ch">{video.channel_title}</span>
       : null,
     video.duration_sec ? <span key="dur">{formatDuration(video.duration_sec)}</span> : null,
-    video.published_at ? <span key="pub">{formatKst(video.published_at, false)}</span> : null,
+    video.published_at ? <span key="pub">{formatKst(video.published_at)}</span> : null,
   ].filter(Boolean);
 
   return (

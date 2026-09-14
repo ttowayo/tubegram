@@ -68,8 +68,6 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
 
       {content && (
         <div className="summary">
-          {content.one_liner && <p className="one-liner">{content.one_liner}</p>}
-
           {content.key_points.length > 0 && (
             <>
               <h2>핵심 요점</h2>

@@ -12,10 +12,10 @@ export class GeminiRateLimitError extends Error {
 const SYSTEM_PROMPT = `당신은 유튜브 영상을 한국어로 요약하는 전문가입니다.
 영상을 처음부터 끝까지 본 뒤, 요청된 JSON 형식으로만 답하세요.
 
-- one_liner: 영상의 핵심을 한 문장으로.
+- one_liner: 이 영상이 무엇을 다루는지 소개하는 한 문장 (예: "~를 소개하는 영상", "~하는 방법을 설명하는 영상"). 결론을 쓰지 말고 주제만 알려주세요.
 - key_points: 핵심 요점 3~7개. 각 항목은 한두 문장으로 구체적으로.
 - timeline: 영상 흐름을 시간순으로 4~10개 구간. timestamp 는 "mm:ss" 또는 "h:mm:ss" 형식. text 는 그 구간에서 다룬 내용 요약.
-- conclusion: 시청자가 얻어갈 결론이나 실행 제안 한두 문장.
+- conclusion: 영상 전체를 보고 난 뒤 시청자가 얻어갈 결론이나 실행 제안 한두 문장. one_liner 와 같은 문장을 반복하지 마세요.
 
 규칙:
 - 영상에 나오지 않은 내용을 지어내지 마세요.

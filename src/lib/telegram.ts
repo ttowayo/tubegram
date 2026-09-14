@@ -83,7 +83,7 @@ export function formatSummaryMessage(video: VideoRow, c: SummaryContent): string
   const metaBits = [
     video.channel_title ? escapeHtml(video.channel_title) : null,
     video.duration_sec ? formatDuration(video.duration_sec) : null,
-    video.published_at ? formatKst(video.published_at, false) : null,
+    video.published_at ? `게시 ${formatKst(video.published_at)}` : null,
   ].filter(Boolean);
   if (metaBits.length) lines.push(metaBits.join(" · "));
   lines.push("");

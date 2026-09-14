@@ -103,10 +103,7 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
             </>
           )}
 
-          <p className="muted">
-            요약 {formatKst(video.summaries?.created_at)}
-            {video.summaries?.model && <> · {video.summaries.model}</>}
-          </p>
+          <p className="muted">요약 {formatKst(video.summaries?.created_at)}</p>
         </div>
       )}
     </>

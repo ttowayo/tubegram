@@ -8,7 +8,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/d/[d
   const [{ date }, sp] = await Promise.all([params, searchParams]);
   if (!isValidDate(date)) notFound();
   const m = typeof sp.m === "string" && isValidMonth(sp.m) ? sp.m : undefined;
-  return <DayView date={date} month={m} />;
+  const p = typeof sp.p === "string" && /^\d+$/.test(sp.p) ? Number(sp.p) : 1;
+  return <DayView date={date} month={m} page={p} />;
 }
 
 export async function generateMetadata({ params }: PageProps<"/d/[date]">) {

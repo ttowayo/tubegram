@@ -292,3 +292,25 @@ a.cal-cell:hover { text-decoration: none; border-color: var(--accent); }
 }
 .back-bar a:first-child { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .back-bar a:hover { text-decoration: none; border-color: var(--accent); }
+
+/* ---- pagination ---- */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+}
+.page-link {
+  min-width: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  text-align: center;
+  font-size: 0.9rem;
+}
+a.page-link:hover { text-decoration: none; border-color: var(--accent); }
+.page-link.current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.page-link.disabled { opacity: 0.35; }

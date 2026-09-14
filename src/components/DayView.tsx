@@ -4,18 +4,26 @@ import { kstDate, monthOf, shiftDate } from "@/lib/date";
 import { Calendar } from "./Calendar";
 import { SummaryCard } from "./SummaryCard";
 
+const PAGE_SIZE = 5;
+
 interface Props {
   date: string;
   month?: string;
+  page?: number;
 }
 
-export async function DayView({ date, month }: Props) {
+export async function DayView({ date, month, page = 1 }: Props) {
   const today = kstDate();
   const calMonth = month ?? monthOf(date);
   const [items, counts] = await Promise.all([listSummariesByDate(date), countSummariesByMonth(calMonth)]);
   const prev = shiftDate(date, -1);
   const next = shiftDate(date, 1);
-  const groups = groupByChannel(items);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const current = Math.min(Math.max(1, page), totalPages);
+  const pageItems = items.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const groups = groupByChannel(pageItems);
+  const pageHref = (p: number) => `/d/${date}?p=${p}${month ? `&m=${month}` : ""}#list`;
 
   return (
     <>
@@ -25,7 +33,10 @@ export async function DayView({ date, month }: Props) {
         <Link href={`/d/${prev}`} className="day-nav" aria-label="이전 날">‹</Link>
         <div>
           <h1>{date === today ? "오늘의 요약" : `${date} 요약`}</h1>
-          <p className="muted">{date} · {items.length}건 · 채널 {groups.length}개</p>
+          <p className="muted">
+            {date} · {items.length}건
+            {totalPages > 1 && <> · {current}/{totalPages} 페이지</>}
+          </p>
         </div>
         {next <= today
           ? <Link href={`/d/${next}`} className="day-nav" aria-label="다음 날">›</Link>
@@ -45,11 +56,27 @@ export async function DayView({ date, month }: Props) {
             </h2>
             <div className="card-list">
               {g.items.map((s) => (
-                <SummaryCard key={s.id} video={s.videos} content={s.content} backTo={`/d/${date}`} />
+                <SummaryCard key={s.id} video={s.videos} content={s.content} backTo={pageHref(current)} />
               ))}
             </div>
           </section>
         ))
+      )}
+
+      {totalPages > 1 && (
+        <nav className="pagination" aria-label="페이지">
+          {current > 1
+            ? <Link href={pageHref(current - 1)} className="page-link">‹ 이전</Link>
+            : <span className="page-link disabled">‹ 이전</span>}
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) =>
+            p === current
+              ? <span key={p} className="page-link current" aria-current="page">{p}</span>
+              : <Link key={p} href={pageHref(p)} className="page-link">{p}</Link>,
+          )}
+          {current < totalPages
+            ? <Link href={pageHref(current + 1)} className="page-link">다음 ›</Link>
+            : <span className="page-link disabled">다음 ›</span>}
+        </nav>
       )}
     </>
   );

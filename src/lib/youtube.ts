@@ -36,7 +36,7 @@ export function parseChannelRef(input: string): ChannelRef | null {
   const s = input.trim();
   if (!s) return null;
   if (CHANNEL_ID_RE.test(s)) return { kind: "id", value: s };
-  if (/^@[\w.\-]+$/.test(s)) return { kind: "handle", value: s };
+  if (/^@[\p{L}\p{N}_.\-]+$/u.test(s)) return { kind: "handle", value: s };
   const videoId = extractVideoId(s);
   if (videoId) return { kind: "video", value: videoId };
   const url = toUrl(s);
@@ -46,7 +46,7 @@ export function parseChannelRef(input: string): ChannelRef | null {
   const path = decodeURIComponent(url.pathname).replace(/\/+$/, "");
   let m = path.match(/^\/channel\/(UC[A-Za-z0-9_-]{22})/);
   if (m) return { kind: "id", value: m[1] };
-  m = path.match(/^\/(@[\w.\-]+)/);
+  m = path.match(/^\/(@[\p{L}\p{N}_.\-]+)/u);
   if (m) return { kind: "handle", value: m[1] };
   m = path.match(/^\/user\/([^/]+)/);
   if (m) return { kind: "username", value: m[1] };

@@ -14,7 +14,13 @@ export const env = {
   get supabaseUrl() { return req("SUPABASE_URL"); },
   get supabaseServiceKey() { return req("SUPABASE_SERVICE_ROLE_KEY"); },
   get geminiApiKey() { return req("GEMINI_API_KEY"); },
-  get geminiModel() { return req("GEMINI_MODEL", "gemini-3.6-flash"); },
+  get geminiModel() { return req("GEMINI_MODEL", "gemini-3.5-flash-lite"); },
+  /** 영상 입력 프레임 수(초당). 낮출수록 토큰 절약 (0.2 ≈ 초당 46토큰) */
+  get geminiVideoFps() { return num("GEMINI_VIDEO_FPS", 0.2); },
+  /** 무료 등급 분당 토큰 한도 (Flash/Flash Lite 250K) */
+  get geminiTpmLimit() { return num("GEMINI_TPM_LIMIT", 250_000); },
+  /** 무료 등급 분당 요청 한도 (Flash 5, Flash Lite 15) */
+  get geminiRpmLimit() { return num("GEMINI_RPM_LIMIT", 15); },
   get youtubeApiKey(): string { return process.env.YOUTUBE_API_KEY ?? ""; },
   get telegramBotToken() { return req("TELEGRAM_BOT_TOKEN"); },
   get telegramWebhookSecret() { return req("TELEGRAM_WEBHOOK_SECRET"); },

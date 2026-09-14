@@ -140,7 +140,9 @@ export async function processVideo(input: VideoRow): Promise<{ stop: string | nu
       youtubeId: video.youtube_id,
       title: video.title,
       channelTitle: video.channel_title,
+      durationSec: video.duration_sec,
     });
+    console.log(`[pipeline] ${video.youtube_id} summarized: ${result.chunks} chunk(s), ${result.promptTokens} prompt tokens`);
     const summary = await saveSummary(video, result);
     await s.rpc("add_usage", { p_day: kstDate(), p_seconds: dur });
     await s.from("videos").update({ status: "done", error: null, locked_at: null, updated_at: now() }).eq("id", video.id);
@@ -150,7 +152,13 @@ export async function processVideo(input: VideoRow): Promise<{ stop: string | nu
   } catch (e) {
     if (e instanceof GeminiRateLimitError) {
       console.warn(`[pipeline] rate limited on ${video.youtube_id}: ${e.message}`);
-      await release(video);
+      if (video.attempts >= MAX_ATTEMPTS) {
+        const msg = `Gemini 한도 초과가 반복되어 중단했습니다. URL 을 다시 보내면 재시도합니다. (${e.message.slice(0, 200)})`;
+        await s.from("videos").update({ status: "failed", error: msg, locked_at: null, updated_at: now() }).eq("id", video.id);
+        await notifyFailure({ ...video, status: "failed", error: msg });
+        return { stop: "rate-limit" };
+      }
+      await release(video, { keepAttempt: true, error: e.message.slice(0, 300) });
       return { stop: "rate-limit" };
     }
     const msg = (e instanceof Error ? e.message : String(e)).slice(0, 500);
@@ -166,11 +174,16 @@ export async function processVideo(input: VideoRow): Promise<{ stop: string | nu
   }
 }
 
-async function release(video: VideoRow): Promise<void> {
+/**
+ * 큐로 되돌림. keepAttempt=true 면 시도 횟수를 유지해 같은 이유로 무한 재시도되지 않게 함
+ * (429 가 3회 반복되면 실패 처리되고 알림이 감)
+ */
+async function release(video: VideoRow, opts: { keepAttempt?: boolean; error?: string } = {}): Promise<void> {
   await db().from("videos").update({
     status: "pending",
     locked_at: null,
-    attempts: Math.max(0, video.attempts - 1),
+    attempts: opts.keepAttempt ? video.attempts : Math.max(0, video.attempts - 1),
+    error: opts.error ?? null,
     updated_at: now(),
   }).eq("id", video.id);
 }

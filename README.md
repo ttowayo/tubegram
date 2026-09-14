@@ -8,7 +8,7 @@
 |---|---|---|
 | 웹/API | Next.js 16 + Vercel Hobby | 함수 최대 300초 |
 | DB | Supabase Postgres | service_role 키로 서버에서만 접근 |
-| 요약 | Gemini API (무료 티어) | 유튜브 URL 을 영상 입력으로 직접 전달 (자막 스크래핑 없음) |
+| 요약 | Gemini API (무료 티어, Flash Lite) | 유튜브 URL 을 영상 입력으로 직접 전달 (자막 스크래핑 없음). 프레임 0.2fps 저해상도로 토큰 절약 |
 | 알림 | Telegram Bot (webhook) | |
 | 새 영상 감지 | YouTube RSS 폴링 + WebSub 푸시 | RSS 는 키 불필요, WebSub 는 거의 실시간 |
 | 메타데이터 | YouTube Data API v3 | 채널 핸들 해석, 영상 길이/라이브 여부. 없으면 스크래핑/oEmbed 로 대체 |
@@ -89,6 +89,17 @@ npm run summarize -- https://www.youtube.com/watch?v=XXXXXXXXXXX --send   # 텔�
 - 쓰기 작업(채널 추가/해지, 오늘 영상 실행, 수동 등록)은 REGISTER_TOKEN 이 필요하며, 한 번 입력하면 쿠키에 7일간 저장되어 다시 묻지 않습니다.
 
 ## 한도와 필터
+
+### Gemini 무료 등급 한도 대응
+
+무료 등급은 모델별로 분당 요청(RPM), 분당 토큰(TPM), 일일 요청(RPD) 한도가 있습니다. 영상 입력은 기본 설정에서 초당 약 260 토큰을 쓰므로 30분 영상 하나가 TPM 250K 를 넘깁니다. 이를 피하기 위해:
+
+- 기본 모델을 `gemini-3.5-flash-lite` 로 둡니다 (RPM 15, TPM 250K, RPD 500). `gemini-3.6-flash` 는 RPD 20 이라 하루 20편밖에 못 합니다.
+- `GEMINI_VIDEO_FPS=0.2` 와 저해상도 입력으로 초당 약 40~46 토큰만 씁니다. 90분 영상도 한 요청에 들어갑니다.
+- 추정 토큰이 TPM 의 80% 를 넘는 긴 영상은 구간으로 나눠 각각 정리한 뒤 하나로 합칩니다.
+- 같은 실행 안에서는 분당 토큰/요청 한도를 계산해 필요하면 다음 분까지 기다린 뒤 호출합니다.
+- 429 를 받으면 대기열로 되돌리고 다음 폴링에서 재시도하며, 3회 반복되면 실패 처리 후 알림을 보냅니다.
+- 유료 등급으로 전환하면 `GEMINI_TPM_LIMIT`, `GEMINI_RPM_LIMIT` 을 올리고 `GEMINI_VIDEO_FPS` 를 1 로 되돌리면 됩니다.
 
 - `MAX_VIDEO_MINUTES` (기본 90): 이보다 긴 영상은 건너뜁니다.
 - `MIN_VIDEO_SECONDS` (기본 60): 채널 자동 요약에서 이보다 짧은 영상(쇼츠)은 건너뜁니다. 직접 보낸 URL 은 적용하지 않습니다.

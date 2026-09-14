@@ -82,9 +82,11 @@ npm run summarize -- https://www.youtube.com/watch?v=XXXXXXXXXXX --send   # 텔�
 사이트:
 
 - `/` 오늘 요약, `/d/2026-09-14` 일자별
-- `/c` 채널 목록, `/c/<channelId>` 채널별 이력
+- `/c` 채널 목록 (채널 추가/해지 가능), `/c/<channelId>` 채널별 이력
 - `/v/<youtubeId>` 상세 (플레이어 + 타임라인 링크)
-- `/register` 수동 등록 (REGISTER_TOKEN 필요)
+- `/today` 구독 채널의 오늘 영상 요약 실행
+- `/register` 수동 등록
+- 쓰기 작업(채널 추가/해지, 오늘 영상 실행, 수동 등록)은 REGISTER_TOKEN 이 필요하며, 한 번 입력하면 쿠키에 저장되어 다시 묻지 않습니다.
 
 ## 한도와 필터
 

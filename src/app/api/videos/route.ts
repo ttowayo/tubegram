@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { env } from "@/lib/env";
+import { redirectWithAuth, siteAuthorized } from "@/lib/auth";
 import { extractVideoId } from "@/lib/youtube";
 import { enqueueVideo, processQueue } from "@/lib/pipeline";
 
@@ -23,9 +24,10 @@ export async function POST(req: Request) {
     token = String(f.get("token") ?? "");
   }
 
-  if (token !== env.registerToken) {
+  if (!siteAuthorized(token, req)) {
     return isForm ? redirect(req, "/register?error=token") : Response.json({ error: "invalid token" }, { status: 403 });
   }
+  const setCookie = Boolean(token);
   const youtubeId = extractVideoId(url);
   if (!youtubeId) {
     return isForm ? redirect(req, "/register?error=url") : Response.json({ error: "invalid youtube url" }, { status: 400 });
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
     });
   }
 
-  if (isForm) return redirect(req, `/v/${youtubeId}`);
+  if (isForm) return redirectWithAuth(req, `/v/${youtubeId}`, setCookie);
   return Response.json({ youtubeId, status: video.status, created });
 }
 

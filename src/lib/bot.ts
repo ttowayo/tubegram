@@ -4,8 +4,8 @@ import { kstDate, formatKst } from "./date";
 import { escapeHtml, sendMessage, formatSummaryMessage, type TelegramUpdate } from "./telegram";
 import { extractVideoId, fetchChannelUploads, parseChannelRef, resolveChannel } from "./youtube";
 import { enqueueVideo, getSummary } from "./pipeline";
-import { websubRequest } from "./websub";
 import { queueTodayUploads } from "./today";
+import { ChannelError, ensureChat, subscribeChannel, subscribedChannels, unsubscribeChannel } from "./channels";
 
 const HELP = `<b>tubegram 봇 사용법</b>
 
@@ -85,12 +85,6 @@ export async function handleUpdate(update: TelegramUpdate): Promise<{ process: b
   }
 }
 
-async function ensureChat(chatId: number, name: string | null): Promise<void> {
-  const s = db();
-  const { data } = await s.from("chats").select("chat_id").eq("chat_id", chatId).maybeSingle();
-  if (!data) await s.from("chats").insert({ chat_id: chatId, name });
-}
-
 async function manualUrl(chatId: number, text: string): Promise<boolean> {
   const videoId = extractVideoId(text);
   if (!videoId) {
@@ -116,55 +110,21 @@ async function manualUrl(chatId: number, text: string): Promise<boolean> {
 }
 
 async function subscribe(chatId: number, arg: string): Promise<void> {
-  const ref = parseChannelRef(arg);
-  if (!ref) {
+  if (!arg) {
     await sendMessage(chatId, "사용법: /subscribe @채널핸들 또는 채널 URL");
     return;
   }
-  const info = await resolveChannel(ref);
-  if (!info) {
-    await sendMessage(chatId, "채널을 찾지 못했습니다. @핸들이나 채널 URL 을 확인해 주세요.");
-    return;
+  let r;
+  try {
+    r = await subscribeChannel(chatId, arg);
+  } catch (e) {
+    if (e instanceof ChannelError) {
+      await sendMessage(chatId, e.message);
+      return;
+    }
+    throw e;
   }
-
-  const s = db();
-  const { data: existing } = await s.from("channels").select("*").eq("channel_id", info.channelId).maybeSingle();
-  let channel = existing as ChannelRow | null;
-
-  if (!channel) {
-    // 기준선: 현재 최신 영상 시각. 과거 영상은 요약하지 않음
-    let baseline = new Date().toISOString();
-    try {
-      const feed = await fetchChannelUploads(info.channelId);
-      const latestTs = Math.max(...feed.map((e) => Date.parse(e.publishedAt)).filter(Number.isFinite));
-      if (Number.isFinite(latestTs) && latestTs > 0) baseline = new Date(latestTs).toISOString();
-    } catch { /* RSS 실패 시 now 기준 */ }
-
-    const { data, error } = await s
-      .from("channels")
-      .insert({
-        channel_id: info.channelId,
-        title: info.title,
-        handle: info.handle,
-        thumbnail_url: info.thumbnailUrl,
-        uploads_playlist_id: info.uploadsPlaylistId,
-        baseline_published_at: baseline,
-        is_active: true,
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    channel = data as ChannelRow;
-  } else if (!channel.is_active) {
-    await s.from("channels").update({ is_active: true, baseline_published_at: new Date().toISOString() }).eq("id", channel.id);
-  }
-
-  const { error: subErr } = await s
-    .from("subscriptions")
-    .upsert({ chat_id: chatId, channel_id: channel.channel_id }, { onConflict: "chat_id,channel_id", ignoreDuplicates: true });
-  if (subErr) throw new Error(subErr.message);
-
-  const pushed = await websubRequest(channel.channel_id, "subscribe");
+  const { channel, pushed } = r;
   await sendMessage(
     chatId,
     `✅ 구독: <b>${escapeHtml(channel.title)}</b>${channel.handle ? ` (${escapeHtml(channel.handle)})` : ""}\n` +
@@ -174,19 +134,12 @@ async function subscribe(chatId: number, arg: string): Promise<void> {
 }
 
 async function unsubscribe(chatId: number, arg: string): Promise<void> {
-  const s = db();
   const target = await findSubscribedChannel(chatId, arg);
   if (!target) {
     await sendMessage(chatId, "구독 목록에서 해당 채널을 찾지 못했습니다. /list 로 확인해 주세요.");
     return;
   }
-  await s.from("subscriptions").delete().eq("chat_id", chatId).eq("channel_id", target.channel_id);
-
-  const { count } = await s.from("subscriptions").select("*", { count: "exact", head: true }).eq("channel_id", target.channel_id);
-  if (!count) {
-    await s.from("channels").update({ is_active: false }).eq("channel_id", target.channel_id);
-    await websubRequest(target.channel_id, "unsubscribe");
-  }
+  await unsubscribeChannel(chatId, target.channel_id);
   await sendMessage(chatId, `🗑 구독 해지: <b>${escapeHtml(target.title)}</b>`);
 }
 
@@ -211,15 +164,6 @@ async function findSubscribedChannel(chatId: number, arg: string): Promise<Chann
   return info ? channels.find((c) => c.channel_id === info.channelId) ?? null : null;
 }
 
-async function subscribedChannels(chatId: number): Promise<ChannelRow[]> {
-  const s = db();
-  const { data: subs } = await s.from("subscriptions").select("channel_id").eq("chat_id", chatId).order("created_at");
-  const ids = (subs ?? []).map((x) => x.channel_id as string);
-  if (ids.length === 0) return [];
-  const { data: channels } = await s.from("channels").select("*").in("channel_id", ids);
-  const byId = new Map(((channels ?? []) as ChannelRow[]).map((c) => [c.channel_id, c]));
-  return ids.map((id) => byId.get(id)).filter((c): c is ChannelRow => Boolean(c));
-}
 
 async function list(chatId: number): Promise<void> {
   const channels = await subscribedChannels(chatId);

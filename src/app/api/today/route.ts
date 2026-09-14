@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { env } from "@/lib/env";
+import { redirectWithAuth, siteAuthorized } from "@/lib/auth";
 import { processQueue } from "@/lib/pipeline";
 import { queueTodayUploads, subscribedChannelsAll } from "@/lib/today";
 
@@ -23,9 +24,10 @@ export async function POST(req: Request) {
     channelId = String(f.get("channel") ?? "");
   }
 
-  if (token !== env.registerToken) {
+  if (!siteAuthorized(token, req)) {
     return isForm ? redirect(req, "/today?error=token") : Response.json({ error: "invalid token" }, { status: 403 });
   }
+  const setCookie = Boolean(token);
 
   let channels = await subscribedChannelsAll();
   if (channelId) channels = channels.filter((c) => c.channel_id === channelId);
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
       found: String(result.channels.reduce((n, c) => n + c.count, 0)),
       errors: String(result.channels.filter((c) => c.error).length),
     });
-    return redirect(req, `/today?${q}`);
+    return redirectWithAuth(req, `/today?${q}`, setCookie);
   }
   return Response.json(result);
 }

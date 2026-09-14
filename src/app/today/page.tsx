@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { kstDate } from "@/lib/date";
+import { env } from "@/lib/env";
+import { AUTH_COOKIE } from "@/lib/auth";
 import { subscribedChannelsAll } from "@/lib/today";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +23,7 @@ export default async function TodayPage({ searchParams }: PageProps<"/today">) {
   const errors = Number(str("errors") ?? 0);
   const channels = await subscribedChannelsAll();
   const today = kstDate();
+  const authed = (await cookies()).get(AUTH_COOKIE)?.value === env.registerToken;
 
   return (
     <>
@@ -66,10 +70,12 @@ export default async function TodayPage({ searchParams }: PageProps<"/today">) {
               ))}
             </select>
           </label>
-          <label>
-            등록 토큰
-            <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
-          </label>
+          {!authed && (
+            <label>
+              등록 토큰
+              <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
+            </label>
+          )}
           <button type="submit">오늘 영상 요약 실행</button>
         </form>
       )}

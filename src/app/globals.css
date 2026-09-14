@@ -323,3 +323,35 @@ a.page-link:hover { text-decoration: none; border-color: var(--accent); }
   margin: 12px 0 20px;
 }
 .notice p { margin: 4px 0; }
+
+/* ---- inline forms / small buttons ---- */
+form.register.inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  max-width: none;
+  margin: 12px 0 20px;
+}
+form.register.inline label { flex: 1 1 260px; }
+form.register.inline button { height: 42px; }
+.inline-form { display: inline; }
+.btn-small {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.btn-small:hover { border-color: var(--accent); }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+}
+.chip:hover { text-decoration: none; border-color: var(--accent); }

@@ -17,21 +17,6 @@ export async function listSummariesByDate(date: string): Promise<SummaryWithVide
   return ((data ?? []) as unknown as SummaryWithVideo[]).filter((s) => s.videos);
 }
 
-/** 요약이 있는 날짜 목록 (최신순, 최대 60일) */
-export async function listSummaryDates(): Promise<{ date: string; count: number }[]> {
-  const { data } = await db()
-    .from("summaries")
-    .select("summary_date")
-    .order("summary_date", { ascending: false })
-    .limit(2000);
-  const counts = new Map<string, number>();
-  for (const row of data ?? []) {
-    const d = row.summary_date as string;
-    counts.set(d, (counts.get(d) ?? 0) + 1);
-  }
-  return [...counts.entries()].slice(0, 60).map(([date, count]) => ({ date, count }));
-}
-
 export interface ChannelSummary extends ChannelRow {
   subscribers: number;
   videoCount: number;
@@ -82,4 +67,23 @@ export async function listRecentVideos(limit = 50): Promise<VideoWithSummary[]> 
     .order("created_at", { ascending: false })
     .limit(limit);
   return (data ?? []) as unknown as VideoWithSummary[];
+}
+
+/** 특정 월(YYYY-MM)의 날짜별 요약 개수 */
+export async function countSummariesByMonth(month: string): Promise<Map<string, number>> {
+  const [y, m] = month.split("-").map(Number);
+  const first = `${month}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const last = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const { data } = await db()
+    .from("summaries")
+    .select("summary_date")
+    .gte("summary_date", first)
+    .lte("summary_date", last);
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const d = row.summary_date as string;
+    counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  return counts;
 }

@@ -13,17 +13,30 @@ const STATUS_TEXT: Record<string, string> = {
   skipped: "요약 대상에서 제외되었습니다.",
 };
 
-export default async function VideoPage({ params }: PageProps<"/v/[youtubeId]">) {
-  const { youtubeId } = await params;
+export default async function VideoPage({ params, searchParams }: PageProps<"/v/[youtubeId]">) {
+  const [{ youtubeId }, sp] = await Promise.all([params, searchParams]);
   if (!/^[A-Za-z0-9_-]{11}$/.test(youtubeId)) notFound();
   const video = await getVideoByYoutubeId(youtubeId);
   if (!video) notFound();
   const content = video.summaries?.content ?? null;
   const inProgress = video.status === "pending" || video.status === "processing";
 
+  // 목록으로 돌아갈 경로: ?from=(내부 경로) > 요약 날짜 > 홈
+  const from = typeof sp.from === "string" && /^\/(?!\/)/.test(sp.from) ? sp.from : null;
+  const dayPath = video.summaries ? `/d/${video.summaries.summary_date}` : null;
+  const backHref = from ?? dayPath ?? "/";
+  const backLabel = from?.startsWith("/c/") ? "채널 목록으로"
+    : from?.startsWith("/d/") || (!from && dayPath) ? `${(from ?? dayPath)!.slice(3)} 목록으로`
+    : "오늘의 요약으로";
+
   return (
     <>
       {inProgress && <meta httpEquiv="refresh" content="15" />}
+      <nav className="back-bar">
+        <Link href={backHref}>‹ {backLabel}</Link>
+        {dayPath && dayPath !== backHref && <Link href={dayPath}>{dayPath.slice(3)} 요약</Link>}
+        {video.channel_id && <Link href={`/c/${video.channel_id}`}>채널 이력</Link>}
+      </nav>
       <h1>{video.title ?? youtubeId}</h1>
       <p className="muted">
         {video.channel_title && (

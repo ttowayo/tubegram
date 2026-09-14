@@ -1,43 +1,78 @@
 import Link from "next/link";
-import { listSummariesByDate, listSummaryDates } from "@/lib/queries";
-import { kstDate, shiftDate } from "@/lib/date";
+import { countSummariesByMonth, listSummariesByDate, type SummaryWithVideo } from "@/lib/queries";
+import { kstDate, monthOf, shiftDate } from "@/lib/date";
+import { Calendar } from "./Calendar";
 import { SummaryCard } from "./SummaryCard";
 
-export async function DayView({ date }: { date: string }) {
+interface Props {
+  date: string;
+  month?: string;
+}
+
+export async function DayView({ date, month }: Props) {
   const today = kstDate();
-  const [items, dates] = await Promise.all([listSummariesByDate(date), listSummaryDates()]);
+  const calMonth = month ?? monthOf(date);
+  const [items, counts] = await Promise.all([listSummariesByDate(date), countSummariesByMonth(calMonth)]);
   const prev = shiftDate(date, -1);
   const next = shiftDate(date, 1);
+  const groups = groupByChannel(items);
 
   return (
     <>
-      <h1>{date === today ? "오늘의 요약" : `${date} 요약`}</h1>
-      <p className="muted">{date} · {items.length}건</p>
+      <Calendar month={calMonth} selected={date} today={today} counts={counts} />
 
-      <div className="date-nav">
-        <Link href={`/d/${prev}`}>← {prev}</Link>
-        {next <= today ? <Link href={`/d/${next}`}>{next} →</Link> : <span className="muted">{next} →</span>}
-        {date !== today && <Link href="/">오늘</Link>}
+      <div className="day-head" id="list">
+        <Link href={`/d/${prev}`} className="day-nav" aria-label="이전 날">‹</Link>
+        <div>
+          <h1>{date === today ? "오늘의 요약" : `${date} 요약`}</h1>
+          <p className="muted">{date} · {items.length}건 · 채널 {groups.length}개</p>
+        </div>
+        {next <= today
+          ? <Link href={`/d/${next}`} className="day-nav" aria-label="다음 날">›</Link>
+          : <span className="day-nav disabled">›</span>}
       </div>
 
       {items.length === 0 ? (
-        <div className="empty">이 날짜에 저장된 요약이 없습니다.</div>
+        <div className="empty">이 날짜에 저장된 요약이 없습니다. 달력에서 숫자가 표시된 날을 눌러 보세요.</div>
       ) : (
-        <div className="card-list">
-          {items.map((s) => <SummaryCard key={s.id} video={s.videos} content={s.content} />)}
-        </div>
-      )}
-
-      {dates.length > 0 && (
-        <>
-          <h2>요약이 있는 날</h2>
-          <div className="chip-row">
-            {dates.map((d) => (
-              <Link key={d.date} href={`/d/${d.date}`} className="chip">{d.date} ({d.count})</Link>
-            ))}
-          </div>
-        </>
+        groups.map((g) => (
+          <section key={g.key} className="channel-group">
+            <h2 className="channel-title">
+              {g.channelId
+                ? <Link href={`/c/${g.channelId}`}>{g.title}</Link>
+                : g.title}
+              <span className="muted"> {g.items.length}</span>
+            </h2>
+            <div className="card-list">
+              {g.items.map((s) => (
+                <SummaryCard key={s.id} video={s.videos} content={s.content} backTo={`/d/${date}`} />
+              ))}
+            </div>
+          </section>
+        ))
       )}
     </>
   );
+}
+
+interface Group {
+  key: string;
+  title: string;
+  channelId: string | null;
+  items: SummaryWithVideo[];
+}
+
+function groupByChannel(items: SummaryWithVideo[]): Group[] {
+  const map = new Map<string, Group>();
+  for (const s of items) {
+    const v = s.videos;
+    const key = v.channel_id ?? v.channel_title ?? "_manual";
+    let g = map.get(key);
+    if (!g) {
+      g = { key, title: v.channel_title ?? "직접 등록", channelId: v.channel_id, items: [] };
+      map.set(key, g);
+    }
+    g.items.push(s);
+  }
+  return [...map.values()].sort((a, b) => b.items.length - a.items.length || a.title.localeCompare(b.title, "ko"));
 }

@@ -9,8 +9,16 @@ const STATUS_LABEL: Record<string, string> = {
   skipped: "건너뜀",
 };
 
-export function SummaryCard({ video, content }: { video: VideoRow; content: SummaryContent | null }) {
+interface Props {
+  video: VideoRow;
+  content: SummaryContent | null;
+  /** 상세 페이지에서 "목록으로" 가 돌아갈 경로 */
+  backTo?: string;
+}
+
+export function SummaryCard({ video, content, backTo }: Props) {
   const thumb = video.thumbnail_url ?? `https://i.ytimg.com/vi/${video.youtube_id}/mqdefault.jpg`;
+  const href = backTo ? `/v/${video.youtube_id}?from=${encodeURIComponent(backTo)}` : `/v/${video.youtube_id}`;
   const meta = [
     video.channel_title
       ? video.channel_id
@@ -23,13 +31,13 @@ export function SummaryCard({ video, content }: { video: VideoRow; content: Summ
 
   return (
     <article className="card">
-      <Link href={`/v/${video.youtube_id}`}>
+      <Link href={href}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={thumb} alt="" loading="lazy" />
       </Link>
       <div>
         <h3 className="title">
-          <Link href={`/v/${video.youtube_id}`}>{video.title ?? video.youtube_id}</Link>
+          <Link href={href}>{video.title ?? video.youtube_id}</Link>
           {video.status !== "done" && <> <span className="status">{STATUS_LABEL[video.status] ?? video.status}</span></>}
         </h3>
         <div className="muted">
@@ -42,7 +50,7 @@ export function SummaryCard({ video, content }: { video: VideoRow; content: Summ
           <ul>
             {content.key_points.slice(0, 3).map((p, i) => <li key={i}>{p}</li>)}
             {content.key_points.length > 3 && (
-              <li className="muted"><Link href={`/v/${video.youtube_id}`}>+ {content.key_points.length - 3}개 더 보기</Link></li>
+              <li className="muted"><Link href={href}>+ {content.key_points.length - 3}개 더 보기</Link></li>
             )}
           </ul>
         )}

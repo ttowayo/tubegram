@@ -31,7 +31,7 @@ export function SummaryCard({ video, content, backTo, hideChannel }: Props) {
         : <span key="ch">{video.channel_title}</span>,
     );
   }
-  if (video.published_at) meta.push(<span key="pub">{formatKst(video.published_at)}</span>);
+  if (video.published_at) meta.push(<span key="pub">게시일 {formatKst(video.published_at)}</span>);
 
   return (
     <article className="card">

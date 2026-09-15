@@ -90,5 +90,6 @@ export const env = {
   },
   get maxVideoMinutes() { return num("MAX_VIDEO_MINUTES", 90); },
   get minVideoSeconds() { return num("MIN_VIDEO_SECONDS", 60); },
-  get dailyVideoMinutesBudget() { return num("DAILY_VIDEO_MINUTES_BUDGET", 420); },
+  /** 하루 처리량 상한(영상 분량). Gemini 한도가 아니라 폭주 방어용 */
+  get dailyVideoMinutesBudget() { return num("DAILY_VIDEO_MINUTES_BUDGET", 600); },
 };

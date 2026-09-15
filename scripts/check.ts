@@ -60,15 +60,18 @@ async function checkTelegram() {
 
 async function checkGemini() {
   console.log("Gemini");
-  try {
-    const ai = new GoogleGenAI({ apiKey: env.geminiApiKey });
-    const res = await ai.models.generateContent({
-      model: env.geminiModel,
-      contents: "한 단어로 답하세요: 안녕",
-    });
-    ok(`model ${env.geminiModel}`, JSON.stringify(res.text ?? "").slice(0, 40));
-  } catch (e) {
-    bad(`model ${env.geminiModel}`, String(e instanceof Error ? e.message : e).slice(0, 300));
+  const ai = new GoogleGenAI({ apiKey: env.geminiApiKey });
+  for (const cfg of env.geminiModels) {
+    try {
+      const res = await ai.models.generateContent({
+        model: cfg.model,
+        contents: "ping",
+        config: { maxOutputTokens: 8, temperature: 0 },
+      });
+      ok(`model ${cfg.model}`, `RPM ${cfg.rpm} / TPM ${cfg.tpm} ${JSON.stringify(res.text ?? "").slice(0, 20)}`);
+    } catch (e) {
+      bad(`model ${cfg.model}`, String(e instanceof Error ? e.message : e).slice(0, 160));
+    }
   }
 }
 

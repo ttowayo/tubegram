@@ -30,6 +30,7 @@ async function main() {
     channelTitle: details?.channelTitle,
   });
   console.timeEnd("gemini");
+  console.log(`model: ${result.model} / chunks: ${result.chunks} / prompt tokens: ${result.promptTokens}`);
   console.log("\n" + result.summaryMd + "\n");
 
   if (flags.includes("--send")) {

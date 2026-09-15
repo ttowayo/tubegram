@@ -1,5 +1,5 @@
 import { GoogleGenAI, ApiError, MediaResolution, type Part } from "@google/genai";
-import { env } from "./env";
+import { env, type GeminiModelConfig } from "./env";
 import type { SummaryContent } from "./supabase";
 
 export class GeminiRateLimitError extends Error {
@@ -97,38 +97,82 @@ export function estimateVideoTokens(durationSec: number, fps = env.geminiVideoFp
   return Math.ceil(durationSec * (37 + 66 * fps)) + 600;
 }
 
-/** 한 요청에 담을 최대 토큰: 분당 한도의 80% */
+/** 한 요청에 담을 최대 토큰: 체인에서 가장 좁은 분당 한도의 80% (어느 모델로 넘어가도 들어가도록) */
 function chunkTokenBudget(): number {
-  return Math.floor(env.geminiTpmLimit * 0.8);
+  const tpm = Math.min(...env.geminiModels.map((m) => m.tpm));
+  return Math.floor(tpm * 0.8);
 }
 
-const ledger: { at: number; tokens: number }[] = [];
-let lastRequestAt = 0;
+interface ModelState {
+  ledger: { at: number; tokens: number }[];
+  lastRequestAt: number;
+  /** 한도에 걸려 쉬는 중이면 이 시각 이후에 다시 시도 */
+  cooldownUntil: number;
+  cooldownReason: string;
+}
 
-/** 분당 토큰/요청 한도를 넘지 않도록 필요하면 대기 */
-async function reserve(tokens: number): Promise<void> {
+const states = new Map<string, ModelState>();
+
+function stateOf(model: string): ModelState {
+  let st = states.get(model);
+  if (!st) {
+    st = { ledger: [], lastRequestAt: 0, cooldownUntil: 0, cooldownReason: "" };
+    states.set(model, st);
+  }
+  return st;
+}
+
+/** 해당 모델의 분당 토큰/요청 한도를 넘지 않도록 필요하면 대기 */
+async function reserve(cfg: GeminiModelConfig, tokens: number): Promise<void> {
+  const st = stateOf(cfg.model);
   const windowMs = 60_000;
-  const minGapMs = Math.ceil(windowMs / env.geminiRpmLimit) + 300;
+  const minGapMs = Math.ceil(windowMs / cfg.rpm) + 300;
 
   for (;;) {
     const now = Date.now();
-    while (ledger.length && ledger[0].at < now - windowMs) ledger.shift();
-    const used = ledger.reduce((a, b) => a + b.tokens, 0);
-    const gapWait = lastRequestAt + minGapMs - now;
-    const tpmWait = used + tokens > env.geminiTpmLimit && ledger.length ? ledger[0].at + windowMs - now + 500 : 0;
+    while (st.ledger.length && st.ledger[0].at < now - windowMs) st.ledger.shift();
+    const used = st.ledger.reduce((a, b) => a + b.tokens, 0);
+    const gapWait = st.lastRequestAt + minGapMs - now;
+    const tpmWait = used + tokens > cfg.tpm && st.ledger.length ? st.ledger[0].at + windowMs - now + 500 : 0;
     const wait = Math.max(gapWait, tpmWait);
     if (wait <= 0) break;
     await new Promise((r) => setTimeout(r, Math.min(wait, windowMs)));
   }
-  lastRequestAt = Date.now();
-  ledger.push({ at: lastRequestAt, tokens });
+  st.lastRequestAt = Date.now();
+  st.ledger.push({ at: st.lastRequestAt, tokens });
+}
+
+// ---------- 모델 폴백 ----------
+
+/** 같은 실행 안에서 남은 대기가 이보다 짧으면 기다렸다 재시도하고, 길면 큐로 되돌립니다 */
+const MAX_INLINE_WAIT_MS = 30_000;
+/** 일일 한도는 이 실행 안에서 회복될 가망이 없으므로 사실상 은퇴시킵니다 */
+const DAY_COOLDOWN_MS = 6 * 60 * 60_000;
+
+/** 429/503 응답을 보고 얼마나 쉬어야 하는지 판단 */
+function cooldownFor(status: number, message: string): { ms: number; reason: string } {
+  if (status === 503) return { ms: 20_000, reason: "overloaded" };
+  const retry = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(message);
+  if (/PerDay|per day|RequestsPerDay/i.test(message)) return { ms: DAY_COOLDOWN_MS, reason: "일일 한도" };
+  const secs = retry ? Number(retry[1]) : 0;
+  return { ms: Math.max(secs * 1000, 15_000), reason: "분당 한도" };
+}
+
+/** 지금 쓸 수 있는 모델. 모두 쉬는 중이면 가장 빨리 풀리는 대기 시간을 함께 반환 */
+function pickModel(): { cfg: GeminiModelConfig | null; waitMs: number } {
+  const now = Date.now();
+  const chain = env.geminiModels;
+  const ready = chain.find((c) => stateOf(c.model).cooldownUntil <= now);
+  if (ready) return { cfg: ready, waitMs: 0 };
+  const waitMs = Math.min(...chain.map((c) => stateOf(c.model).cooldownUntil - now));
+  return { cfg: null, waitMs };
 }
 
 // ---------- 요약 ----------
 
 export async function summarizeYoutubeVideo(input: SummarizeInput): Promise<SummarizeResult> {
   const ai = new GoogleGenAI({ apiKey: env.geminiApiKey });
-  const model = env.geminiModel;
+  const used = new Set<string>();
   const url = `https://www.youtube.com/watch?v=${input.youtubeId}`;
   const meta = [
     input.title ? `제목: ${input.title}` : null,
@@ -141,13 +185,12 @@ export async function summarizeYoutubeVideo(input: SummarizeInput): Promise<Summ
 
   // 한 번에 처리 가능한 길이면 단일 요청
   if (!duration || est <= budget) {
-    await reserve(est);
-    const { data, usage } = await generateJson<Partial<SummaryContent>>(ai, model, SYSTEM_PROMPT, RESPONSE_SCHEMA, [
+    const { data, usage } = await callJson<Partial<SummaryContent>>(ai, SYSTEM_PROMPT, RESPONSE_SCHEMA, [
       videoPart(url),
       { text: `${meta ? meta + "\n\n" : ""}이 영상을 요약해 주세요.` },
-    ]);
+    ], est, used);
     const content = normalize(data);
-    return { content, summaryMd: toMarkdown(content), model, promptTokens: usage, chunks: 1 };
+    return { content, summaryMd: toMarkdown(content), model: [...used].join("+"), promptTokens: usage, chunks: 1 };
   }
 
   // 긴 영상: 구간별 요약 후 병합
@@ -159,12 +202,12 @@ export async function summarizeYoutubeVideo(input: SummarizeInput): Promise<Summ
   for (let i = 0; i < chunks; i++) {
     const start = i * chunkLen;
     const end = Math.min(duration, (i + 1) * chunkLen);
-    await reserve(estimateVideoTokens(end - start));
-    const { data, usage } = await generateJson<{ key_points?: string[]; timeline?: { timestamp?: string; text?: string }[] }>(
-      ai, model, CHUNK_PROMPT, CHUNK_SCHEMA, [
+    const { data, usage } = await callJson<{ key_points?: string[]; timeline?: { timestamp?: string; text?: string }[] }>(
+      ai, CHUNK_PROMPT, CHUNK_SCHEMA, [
         videoPart(url, start, end),
         { text: `${meta ? meta + "\n\n" : ""}이 영상의 ${fmt(start)} ~ ${fmt(end)} 구간(${i + 1}/${chunks})입니다. 이 구간을 정리해 주세요.` },
       ],
+      estimateVideoTokens(end - start), used,
     );
     usedTokens += usage;
     notes.push({
@@ -180,13 +223,12 @@ export async function summarizeYoutubeVideo(input: SummarizeInput): Promise<Summ
   const notesText = notes
     .map((n) => JSON.stringify({ range: `${fmt(n.start)}~${fmt(n.end)}`, key_points: n.key_points, timeline: n.timeline }))
     .join("\n");
-  await reserve(Math.ceil(notesText.length / 2) + 2000);
-  const { data, usage } = await generateJson<Partial<SummaryContent>>(ai, model, MERGE_PROMPT, RESPONSE_SCHEMA, [
+  const { data, usage } = await callJson<Partial<SummaryContent>>(ai, MERGE_PROMPT, RESPONSE_SCHEMA, [
     { text: `${meta ? meta + "\n\n" : ""}영상 길이: ${fmt(duration)}\n\n구간별 메모:\n${notesText}` },
-  ]);
+  ], Math.ceil(notesText.length / 2) + 2000, used);
   usedTokens += usage;
   const content = normalize(data);
-  return { content, summaryMd: toMarkdown(content), model, promptTokens: usedTokens, chunks };
+  return { content, summaryMd: toMarkdown(content), model: [...used].join("+"), promptTokens: usedTokens, chunks };
 }
 
 function videoPart(url: string, startSec?: number, endSec?: number): Part {
@@ -196,6 +238,51 @@ function videoPart(url: string, startSec?: number, endSec?: number): Part {
   return { fileData: { fileUri: url, mimeType: "video/*" }, videoMetadata };
 }
 
+/** 체인을 따라가며 호출. 한도(429)·과부하(503)·미지원(404) 이면 다음 모델로 넘어갑니다 */
+async function callJson<T>(
+  ai: GoogleGenAI,
+  systemInstruction: string,
+  schema: unknown,
+  parts: Part[],
+  estTokens: number,
+  used: Set<string>,
+): Promise<{ data: T; usage: number }> {
+  const maxAttempts = env.geminiModels.length * 2 + 4;
+  let lastError = "";
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { cfg, waitMs } = pickModel();
+    if (!cfg) {
+      if (waitMs > MAX_INLINE_WAIT_MS) break;
+      await new Promise((r) => setTimeout(r, Math.max(waitMs, 1_000)));
+      continue;
+    }
+
+    await reserve(cfg, estTokens);
+    try {
+      const r = await generateJson<T>(ai, cfg.model, systemInstruction, schema, parts);
+      used.add(cfg.model);
+      return r;
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      if (status !== 429 && status !== 503 && status !== 404) throw e;
+      const message = e instanceof Error ? e.message : String(e);
+      const { ms, reason } = status === 404
+        ? { ms: DAY_COOLDOWN_MS, reason: "사용 불가" }
+        : cooldownFor(status, message);
+      const st = stateOf(cfg.model);
+      st.cooldownUntil = Date.now() + ms;
+      st.cooldownReason = reason;
+      lastError = `${cfg.model} ${status} ${reason}`;
+      console.warn(`[gemini] ${lastError} - ${Math.round(ms / 1000)}s 대기, 다음 모델로 전환`);
+    }
+  }
+
+  const { waitMs } = pickModel();
+  const secs = Math.max(0, Math.ceil(waitMs / 1000));
+  throw new GeminiRateLimitError(`체인의 모든 모델이 한도에 걸렸습니다 (약 ${secs}초 후 해제). 마지막: ${lastError || "unknown"}`);
+}
+
 async function generateJson<T>(
   ai: GoogleGenAI,
   model: string,
@@ -203,29 +290,20 @@ async function generateJson<T>(
   schema: unknown,
   parts: Part[],
 ): Promise<{ data: T; usage: number }> {
-  let text: string | undefined;
-  let usage = 0;
-  try {
-    const res = await ai.models.generateContent({
-      model,
-      contents: [{ role: "user", parts }],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseJsonSchema: schema,
-        mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
-        temperature: 0.3,
-      },
-    });
-    text = res.text;
-    usage = res.usageMetadata?.promptTokenCount ?? 0;
-  } catch (e) {
-    if (e instanceof ApiError && (e.status === 429 || e.status === 503)) {
-      throw new GeminiRateLimitError(`Gemini ${e.status}: ${e.message.slice(0, 300)}`);
-    }
-    throw e;
-  }
-  if (!text) throw new Error("Gemini returned empty response");
+  const res = await ai.models.generateContent({
+    model,
+    contents: [{ role: "user", parts }],
+    config: {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseJsonSchema: schema,
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
+      temperature: 0.3,
+    },
+  });
+  const text = res.text;
+  const usage = res.usageMetadata?.promptTokenCount ?? 0;
+  if (!text) throw new Error(`Gemini(${model}) returned empty response`);
   return { data: JSON.parse(stripFence(text)) as T, usage };
 }
 

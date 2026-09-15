@@ -26,86 +26,86 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
   const dayPath = video.summaries ? `/d/${video.summaries.summary_date}` : null;
   const backHref = from ?? dayPath ?? "/";
   const backLabel = from?.startsWith("/c/") ? "채널 목록으로"
-    : from?.startsWith("/d/") || (!from && dayPath) ? `${(from ?? dayPath)!.slice(3)} 목록으로`
+    : from?.startsWith("/d/") || (!from && dayPath) ? `${(from ?? dayPath)!.slice(3).split(/[?#]/)[0]} 목록으로`
     : "오늘의 요약으로";
 
   return (
-    <>
-      {inProgress && <meta httpEquiv="refresh" content="15" />}
-      <nav className="back-bar">
-        <Link href={backHref}>‹ {backLabel}</Link>
-        {dayPath && dayPath !== backHref && <Link href={dayPath}>{dayPath.slice(3)} 요약</Link>}
-        {video.channel_id && <Link href={`/c/${video.channel_id}`}>채널 이력</Link>}
-      </nav>
-      <h1>{video.title ?? youtubeId}</h1>
-      <p className="muted">
-        {video.channel_title && (
-          video.channel_id
-            ? <Link href={`/c/${video.channel_id}`}>{video.channel_title}</Link>
-            : <span>{video.channel_title}</span>
+    <div className="narrow">
+        {inProgress && <meta httpEquiv="refresh" content="15" />}
+        <nav className="back-bar">
+          <Link href={backHref}>‹ {backLabel}</Link>
+          {dayPath && dayPath !== backHref && <Link href={dayPath}>{dayPath.slice(3)} 요약</Link>}
+          {video.channel_id && <Link href={`/c/${video.channel_id}`}>채널 이력</Link>}
+        </nav>
+        <h1>{video.title ?? youtubeId}</h1>
+        <p className="muted">
+          {video.channel_title && (
+            video.channel_id
+              ? <Link href={`/c/${video.channel_id}`}>{video.channel_title}</Link>
+              : <span>{video.channel_title}</span>
+          )}
+          {video.duration_sec ? <> · {formatDuration(video.duration_sec)}</> : null}
+          {video.published_at ? <> · 게시 {formatKst(video.published_at)}</> : null}
+          {" · "}<a href={watchUrl(youtubeId)} target="_blank" rel="noreferrer">유튜브에서 보기</a>
+        </p>
+
+        <div className="video-embed">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+            title={video.title ?? youtubeId}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+
+        {video.status !== "done" && (
+          <div className="summary">
+            <p><span className="status">{video.status}</span> {STATUS_TEXT[video.status] ?? ""}</p>
+            {video.error && <p className="muted">{video.error}</p>}
+            {inProgress && <p className="muted">이 페이지는 15초마다 자동 새로고침됩니다.</p>}
+          </div>
         )}
-        {video.duration_sec ? <> · {formatDuration(video.duration_sec)}</> : null}
-        {video.published_at ? <> · 게시 {formatKst(video.published_at)}</> : null}
-        {" · "}<a href={watchUrl(youtubeId)} target="_blank" rel="noreferrer">유튜브에서 보기</a>
-      </p>
 
-      <div className="video-embed">
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-          title={video.title ?? youtubeId}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      </div>
+        {content && (
+          <div className="summary">
+            {content.key_points.length > 0 && (
+              <>
+                <h2>핵심 요점</h2>
+                <ul>{content.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </>
+            )}
 
-      {video.status !== "done" && (
-        <div className="summary">
-          <p><span className="status">{video.status}</span> {STATUS_TEXT[video.status] ?? ""}</p>
-          {video.error && <p className="muted">{video.error}</p>}
-          {inProgress && <p className="muted">이 페이지는 15초마다 자동 새로고침됩니다.</p>}
-        </div>
-      )}
+            {content.timeline.length > 0 && (
+              <>
+                <h2>타임라인</h2>
+                <ul className="timeline">
+                  {content.timeline.map((t, i) => {
+                    const sec = timestampToSeconds(t.timestamp);
+                    return (
+                      <li key={i}>
+                        <span className="ts">
+                          {sec !== null
+                            ? <a href={watchUrl(youtubeId, sec)} target="_blank" rel="noreferrer">{t.timestamp}</a>
+                            : t.timestamp}
+                        </span>
+                        <span>{t.text}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
 
-      {content && (
-        <div className="summary">
-          {content.key_points.length > 0 && (
-            <>
-              <h2>핵심 요점</h2>
-              <ul>{content.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
-            </>
-          )}
+            {content.conclusion && (
+              <>
+                <h2>결론</h2>
+                <p>{content.conclusion}</p>
+              </>
+            )}
 
-          {content.timeline.length > 0 && (
-            <>
-              <h2>타임라인</h2>
-              <ul className="timeline">
-                {content.timeline.map((t, i) => {
-                  const sec = timestampToSeconds(t.timestamp);
-                  return (
-                    <li key={i}>
-                      <span className="ts">
-                        {sec !== null
-                          ? <a href={watchUrl(youtubeId, sec)} target="_blank" rel="noreferrer">{t.timestamp}</a>
-                          : t.timestamp}
-                      </span>
-                      <span>{t.text}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-
-          {content.conclusion && (
-            <>
-              <h2>결론</h2>
-              <p>{content.conclusion}</p>
-            </>
-          )}
-
-          <p className="muted">요약 {formatKst(video.summaries?.created_at)}</p>
-        </div>
-      )}
-    </>
+            <p className="muted">요약 {formatKst(video.summaries?.created_at)}</p>
+          </div>
+        )}
+    </div>
   );
 }

@@ -26,59 +26,59 @@ export default async function TodayPage({ searchParams }: PageProps<"/today">) {
   const authed = (await cookies()).get(AUTH_COOKIE)?.value === env.registerToken;
 
   return (
-    <>
-      <nav className="back-bar">
-        <Link href="/">‹ 오늘의 요약</Link>
-        <Link href="/c">채널 목록</Link>
-      </nav>
-      <h1>오늘 올라온 영상 요약</h1>
-      <p className="muted">
-        구독 채널에서 오늘({today}) 올라온 영상을 모두 찾아 요약합니다. 이미 요약된 영상은 다시 처리하지 않고,
-        완료된 요약은 오너 텔레그램으로도 전송됩니다.
-      </p>
+    <div className="narrow">
+        <nav className="back-bar">
+          <Link href="/">‹ 오늘의 요약</Link>
+          <Link href="/c">채널 목록</Link>
+        </nav>
+        <h1>오늘 올라온 영상 요약</h1>
+        <p className="muted">
+          구독 채널에서 오늘({today}) 올라온 영상을 모두 찾아 요약합니다. 이미 요약된 영상은 다시 처리하지 않고,
+          완료된 요약은 오너 텔레그램으로도 전송됩니다.
+        </p>
 
-      {error && <p className="error">{error}</p>}
+        {error && <p className="error">{error}</p>}
 
-      {found !== null && !error && (
-        <div className="notice">
-          {found === 0 ? (
-            <p>오늘 올라온 영상이 없습니다.</p>
-          ) : (
-            <>
-              <p>
-                오늘 올라온 영상 <b>{found}편</b>을 찾았습니다.
-                새로 접수 <b>{queued}편</b>{already > 0 && <>, 이미 요약된 {already}편</>}
-                {errors > 0 && <>, 피드를 읽지 못한 채널 {errors}개</>}.
-              </p>
-              {queued > 0 && <p className="muted">요약은 보통 편당 10초~1분 걸립니다. 잠시 후 오늘의 요약 페이지를 새로고침해 주세요.</p>}
-              <p><Link href="/">오늘의 요약 보기 →</Link></p>
-            </>
-          )}
-        </div>
-      )}
+        {found !== null && !error && (
+          <div className="notice">
+            {found === 0 ? (
+              <p>오늘 올라온 영상이 없습니다.</p>
+            ) : (
+              <>
+                <p>
+                  오늘 올라온 영상 <b>{found}편</b>을 찾았습니다.
+                  새로 접수 <b>{queued}편</b>{already > 0 && <>, 이미 요약된 {already}편</>}
+                  {errors > 0 && <>, 피드를 읽지 못한 채널 {errors}개</>}.
+                </p>
+                {queued > 0 && <p className="muted">요약은 보통 편당 10초~1분 걸립니다. 잠시 후 오늘의 요약 페이지를 새로고침해 주세요.</p>}
+                <p><Link href="/">오늘의 요약 보기 →</Link></p>
+              </>
+            )}
+          </div>
+        )}
 
-      {channels.length === 0 ? (
-        <div className="empty">구독 중인 채널이 없습니다. 텔레그램 봇에서 /subscribe 로 추가하세요.</div>
-      ) : (
-        <form className="register" method="post" action="/api/today">
-          <label>
-            대상 채널
-            <select name="channel" defaultValue="">
-              <option value="">구독 채널 전체 ({channels.length}개)</option>
-              {channels.map((c) => (
-                <option key={c.channel_id} value={c.channel_id}>{c.title}</option>
-              ))}
-            </select>
-          </label>
-          {!authed && (
+        {channels.length === 0 ? (
+          <div className="empty">구독 중인 채널이 없습니다. 텔레그램 봇에서 /subscribe 로 추가하세요.</div>
+        ) : (
+          <form className="register" method="post" action="/api/today">
             <label>
-              등록 토큰
-              <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
+              대상 채널
+              <select name="channel" defaultValue="">
+                <option value="">구독 채널 전체 ({channels.length}개)</option>
+                {channels.map((c) => (
+                  <option key={c.channel_id} value={c.channel_id}>{c.title}</option>
+                ))}
+              </select>
             </label>
-          )}
-          <button type="submit">오늘 영상 요약 실행</button>
-        </form>
-      )}
-    </>
+            {!authed && (
+              <label>
+                등록 토큰
+                <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
+              </label>
+            )}
+            <button type="submit">오늘 영상 요약 실행</button>
+          </form>
+        )}
+    </div>
   );
 }

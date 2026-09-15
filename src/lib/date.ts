@@ -54,6 +54,21 @@ export function timestampToSeconds(ts: string): number | null {
   return null;
 }
 
+const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** "2026-09-14" -> "9월 14일 (월)" */
+export function formatDayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const w = WEEKDAY_KO[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${m}월 ${d}일 (${w})`;
+}
+
+/** "2026-09-14" -> "9/14" */
+export function formatDayShort(date: string): string {
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}/${d}`;
+}
+
 /** "YYYY-MM-DD" -> "YYYY-MM" */
 export function monthOf(date: string): string {
   return date.slice(0, 7);

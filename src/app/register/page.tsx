@@ -16,23 +16,23 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
   const authed = (await cookies()).get(AUTH_COOKIE)?.value === env.registerToken;
 
   return (
-    <>
-      <h1>영상 등록</h1>
-      <p className="muted">유튜브 URL 을 등록하면 요약해서 저장하고, 오너 텔레그램으로 전송합니다.</p>
-      {error && <p className="error">{error}</p>}
-      <form className="register" method="post" action="/api/videos">
-        <label>
-          유튜브 URL
-          <input name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." required autoFocus />
-        </label>
-        {!authed && (
+    <div className="narrow">
+        <h1>영상 등록</h1>
+        <p className="muted">유튜브 URL 을 등록하면 요약해서 저장하고, 오너 텔레그램으로 전송합니다.</p>
+        {error && <p className="error">{error}</p>}
+        <form className="register" method="post" action="/api/videos">
           <label>
-            등록 토큰
-            <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
+            유튜브 URL
+            <input name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." required autoFocus />
           </label>
-        )}
-        <button type="submit">요약 요청</button>
-      </form>
-    </>
+          {!authed && (
+            <label>
+              등록 토큰
+              <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
+            </label>
+          )}
+          <button type="submit">요약 요청</button>
+        </form>
+    </div>
   );
 }

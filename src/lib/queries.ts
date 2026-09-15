@@ -69,6 +69,29 @@ export async function listRecentVideos(limit = 50): Promise<VideoWithSummary[]> 
   return (data ?? []) as unknown as VideoWithSummary[];
 }
 
+export interface DayCount {
+  date: string;
+  count: number;
+}
+
+/** 요약이 있는 최근 날짜와 건수 (사이드바/빈 화면 안내용) */
+export async function listRecentSummaryDates(limit = 8): Promise<DayCount[]> {
+  const { data } = await db()
+    .from("summaries")
+    .select("summary_date")
+    .order("summary_date", { ascending: false })
+    .limit(600);
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const d = row.summary_date as string;
+    counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, limit);
+}
+
 /** 특정 월(YYYY-MM)의 날짜별 요약 개수 */
 export async function countSummariesByMonth(month: string): Promise<Map<string, number>> {
   const [y, m] = month.split("-").map(Number);

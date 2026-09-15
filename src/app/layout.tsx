@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Nav } from "@/components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,13 +14,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <header className="site-header">
           <div className="container header-inner">
-            <Link href="/" className="brand">▶ tubegram</Link>
-            <nav>
-              <Link href="/">오늘</Link>
-              <Link href="/c">채널</Link>
-              <Link href="/today">오늘 영상</Link>
-              <Link href="/register">등록</Link>
-            </nav>
+            <Link href="/" className="brand">
+              <span className="brand-mark" aria-hidden="true">▶</span>tubegram
+            </Link>
+            <Nav />
           </div>
         </header>
         <main className="container">{children}</main>

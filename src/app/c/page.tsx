@@ -1,9 +1,6 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { listChannels } from "@/lib/queries";
 import { formatKst } from "@/lib/date";
-import { env } from "@/lib/env";
-import { AUTH_COOKIE } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "채널" };
@@ -18,7 +15,6 @@ const ERRORS: Record<string, string> = {
 export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const authed = (await cookies()).get(AUTH_COOKIE)?.value === env.registerToken;
   const channels = await listChannels();
   const active = channels.filter((c) => c.is_active);
   const inactive = channels.filter((c) => !c.is_active);
@@ -48,12 +44,6 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
           채널 추가
           <input name="input" type="text" placeholder="@핸들, 채널 URL, 또는 그 채널 영상 URL" required />
         </label>
-        {!authed && (
-          <label>
-            등록 토큰
-            <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
-          </label>
-        )}
         <button type="submit">구독</button>
       </form>
 
@@ -84,15 +74,11 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
                   <td className="muted">{formatKst(c.last_checked_at) || "-"}</td>
                   <td className="muted">{c.websub_lease_expires_at && Date.parse(c.websub_lease_expires_at) > Date.now() ? "푸시" : "폴링"}</td>
                   <td>
-                    {authed ? (
-                      <form method="post" action="/api/channels" className="inline-form">
-                        <input type="hidden" name="action" value="unsubscribe" />
-                        <input type="hidden" name="channel_id" value={c.channel_id} />
-                        <button type="submit" className="btn-small">해지</button>
-                      </form>
-                    ) : (
-                      <span className="muted" title="토큰으로 한 번 인증하면 해지 버튼이 나타납니다">-</span>
-                    )}
+                    <form method="post" action="/api/channels" className="inline-form">
+                      <input type="hidden" name="action" value="unsubscribe" />
+                      <input type="hidden" name="channel_id" value={c.channel_id} />
+                      <button type="submit" className="btn-small">해지</button>
+                    </form>
                   </td>
                 </tr>
               ))}

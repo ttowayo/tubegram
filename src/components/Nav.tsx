@@ -14,6 +14,9 @@ const LINKS = [
 export function Nav() {
   const pathname = usePathname();
 
+  // 로그인 화면에서는 갈 곳도 나갈 것도 없다
+  if (pathname === "/login") return null;
+
   return (
     <nav>
       {LINKS.map(({ href, label }) => {
@@ -26,6 +29,9 @@ export function Nav() {
           </Link>
         );
       })}
+      <form method="post" action="/api/logout" className="logout-form">
+        <button type="submit" className="logout-btn">로그아웃</button>
+      </form>
     </nav>
   );
 }

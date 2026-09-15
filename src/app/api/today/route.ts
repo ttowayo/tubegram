@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     channelId = String(f.get("channel") ?? "");
   }
 
-  if (!siteAuthorized(token, req)) {
+  if (!(await siteAuthorized(token, req))) {
     return isForm ? redirect(req, "/today?error=token") : Response.json({ error: "invalid token" }, { status: 403 });
   }
   const setCookie = Boolean(token);

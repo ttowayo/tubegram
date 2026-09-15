@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   }
 
   const token = body.token || null;
-  if (!siteAuthorized(token, req)) {
+  if (!(await siteAuthorized(token, req))) {
     return isForm ? redirectWithAuth(req, "/c?error=token", false) : Response.json({ error: "invalid token" }, { status: 403 });
   }
   const setCookie = Boolean(token);

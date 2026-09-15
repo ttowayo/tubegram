@@ -86,7 +86,16 @@ npm run summarize -- https://www.youtube.com/watch?v=XXXXXXXXXXX --send   # 텔�
 - `/v/<youtubeId>` 상세 (플레이어 + 타임라인 링크)
 - `/today` 구독 채널의 오늘 영상 요약 실행
 - `/register` 수동 등록
-- 쓰기 작업(채널 추가/해지, 오늘 영상 실행, 수동 등록)은 REGISTER_TOKEN 이 필요하며, 한 번 입력하면 쿠키에 7일간 저장되어 다시 묻지 않습니다.
+- `/login` 로그인
+
+### 로그인
+
+사이트 전체가 `REGISTER_TOKEN` 암호로 잠겨 있습니다. 로그인하지 않으면 모든 페이지가 `/login` 으로 넘어가고, 로그인하면 7일간 유지됩니다. 보려던 주소는 `?next=` 로 남겨 로그인 후 그 페이지로 돌아갑니다.
+
+- 인증은 `src/proxy.ts`(Next 16 부터 미들웨어의 새 이름)에서 처리합니다.
+- 쿠키에는 원문 토큰이 아니라 SHA-256 해시를 담습니다. 쿠키가 어딘가에 기록되어도 `REGISTER_TOKEN` 자체는 새지 않습니다.
+- `/api/*` 는 proxy 대상에서 빼두었습니다. 크론·텔레그램 웹훅·WebSub 는 각자 시크릿으로 인증하고, 쓰기 API(`/api/channels`, `/api/videos`, `/api/today`)는 요청마다 `siteAuthorized` 로 따로 검사합니다.
+- 헤더 오른쪽 `로그아웃` 으로 쿠키를 지웁니다.
 
 ## 한도와 필터
 

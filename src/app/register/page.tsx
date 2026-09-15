@@ -1,7 +1,3 @@
-import { cookies } from "next/headers";
-import { env } from "@/lib/env";
-import { AUTH_COOKIE } from "@/lib/auth";
-
 export const dynamic = "force-dynamic";
 export const metadata = { title: "영상 등록" };
 
@@ -13,7 +9,6 @@ const ERRORS: Record<string, string> = {
 export default async function RegisterPage({ searchParams }: PageProps<"/register">) {
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? ERRORS[sp.error] : undefined;
-  const authed = (await cookies()).get(AUTH_COOKIE)?.value === env.registerToken;
 
   return (
     <div className="narrow">
@@ -25,12 +20,6 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
             유튜브 URL
             <input name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." required autoFocus />
           </label>
-          {!authed && (
-            <label>
-              등록 토큰
-              <input name="token" type="password" placeholder="REGISTER_TOKEN" required />
-            </label>
-          )}
           <button type="submit">요약 요청</button>
         </form>
     </div>

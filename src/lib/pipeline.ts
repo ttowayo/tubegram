@@ -221,6 +221,12 @@ async function usageTodaySeconds(): Promise<number> {
   return (data?.video_seconds as number | undefined) ?? 0;
 }
 
+/** 요약 날짜는 영상 게시일(KST) 기준. 게시일을 모르면 처리 시각으로 대체 */
+function summaryDateFor(video: VideoRow): string {
+  const t = video.published_at ? Date.parse(video.published_at) : NaN;
+  return Number.isFinite(t) ? kstDate(new Date(t)) : kstDate();
+}
+
 async function saveSummary(video: VideoRow, r: SummarizeResult): Promise<SummaryRow> {
   const { data, error } = await db()
     .from("summaries")
@@ -230,7 +236,7 @@ async function saveSummary(video: VideoRow, r: SummarizeResult): Promise<Summary
         summary_md: r.summaryMd,
         content: r.content,
         model: r.model,
-        summary_date: kstDate(),
+        summary_date: summaryDateFor(video),
       },
       { onConflict: "video_id" },
     )

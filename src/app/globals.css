@@ -241,6 +241,26 @@ main {
   }
 }
 
+/* 태블릿: 달력과 최근 요약을 나란히 두고 달력 폭을 묶는다 */
+@media (min-width: 620px) and (max-width: 1023px) {
+  .rail {
+    display: grid;
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .rail .panel + .panel {
+    margin-top: 0;
+  }
+}
+
+/* 좁은 화면: 달력 셀이 과하게 커지지 않게 */
+@media (max-width: 619px) {
+  .rail {
+    max-width: 420px;
+  }
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -850,6 +870,9 @@ form.register button {
 form.register button:hover {
   filter: brightness(1.08);
 }
+form.register:not(.inline) button {
+  align-self: flex-start;
+}
 form.register.inline {
   flex-direction: row;
   flex-wrap: wrap;
@@ -1012,4 +1035,69 @@ a.page-link:hover {
     transition: none !important;
     animation: none !important;
   }
+}
+
+.list-note {
+  margin-top: 14px;
+  text-align: center;
+}
+
+/* ============================================================
+   loading skeleton
+   ============================================================ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: var(--r-sm);
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+.sk-cal-head {
+  height: 30px;
+  margin-bottom: 10px;
+}
+.sk-cal-cell {
+  height: 42px;
+  border-radius: 9px;
+}
+.sk-panel-body {
+  height: 132px;
+}
+.sk-title {
+  height: 26px;
+  width: 190px;
+  margin-bottom: 8px;
+}
+.sk-sub {
+  height: 14px;
+  width: 130px;
+}
+.sk-group {
+  height: 18px;
+  width: 150px;
+  margin: 26px 0 12px;
+}
+.sk-line {
+  height: 13px;
+}
+.sk-line.w90 {
+  width: 90%;
+}
+.sk-line.w60 {
+  width: 60%;
+}
+.sk-line.w35 {
+  width: 35%;
 }

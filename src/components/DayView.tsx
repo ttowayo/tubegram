@@ -108,10 +108,12 @@ export async function DayView({ date, month, page = 1 }: Props) {
             {current > 1
               ? <Link href={pageHref(current - 1)} className="page-link">‹ 이전</Link>
               : <span className="page-link disabled">‹ 이전</span>}
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) =>
-              p === current
-                ? <span key={p} className="page-link current" aria-current="page">{p}</span>
-                : <Link key={p} href={pageHref(p)} className="page-link">{p}</Link>,
+            {pageWindow(current, totalPages).map((p, i) =>
+              p === "gap"
+                ? <span key={`gap${i}`} className="page-gap" aria-hidden="true">…</span>
+                : p === current
+                  ? <span key={p} className="page-link current" aria-current="page">{p}</span>
+                  : <Link key={p} href={pageHref(p)} className="page-link">{p}</Link>,
             )}
             {current < totalPages
               ? <Link href={pageHref(current + 1)} className="page-link">다음 ›</Link>
@@ -121,6 +123,27 @@ export async function DayView({ date, month, page = 1 }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * 페이지 번호를 "1 … 4 5 6 … 20" 형태로 줄인다.
+ * 첫 페이지, 마지막 페이지, 현재 페이지 앞뒤 span 개만 남기고 나머지는 생략 표시로 접는다.
+ */
+export function pageWindow(current: number, total: number, span = 1): (number | "gap")[] {
+  const keep = new Set<number>([1, total]);
+  for (let p = current - span; p <= current + span; p++) {
+    if (p >= 1 && p <= total) keep.add(p);
+  }
+  const out: (number | "gap")[] = [];
+  let prev = 0;
+  for (const p of [...keep].sort((a, b) => a - b)) {
+    // 한 개만 건너뛸 때는 생략 표시가 자리를 아끼지 못하므로 그대로 둔다
+    if (prev && p - prev === 2) out.push(prev + 1);
+    else if (prev && p - prev > 2) out.push("gap");
+    out.push(p);
+    prev = p;
+  }
+  return out;
 }
 
 /** 요약이 없는 날: 빈 문장 대신 요약이 있는 날로 바로 갈 수 있게 */

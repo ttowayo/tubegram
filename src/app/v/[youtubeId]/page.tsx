@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getVideoByYoutubeId } from "@/lib/queries";
 import { formatDuration, formatKst, timestampToSeconds } from "@/lib/date";
 import { watchUrl } from "@/lib/youtube";
+import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
 
   return (
     <div className="narrow">
-        {inProgress && <meta httpEquiv="refresh" content="15" />}
+        {inProgress && <AutoRefresh />}
         <nav className="back-bar">
           <Link href={backHref}>‹ {backLabel}</Link>
           {dayPath && dayPath !== backHref && <Link href={dayPath}>{dayPath.slice(3)} 요약</Link>}
@@ -62,7 +63,7 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
           <div className="summary">
             <p><span className="status">{video.status}</span> {STATUS_TEXT[video.status] ?? ""}</p>
             {video.error && <p className="muted">{video.error}</p>}
-            {inProgress && <p className="muted">이 페이지는 15초마다 자동 새로고침됩니다.</p>}
+            {inProgress && <p className="muted">요약이 끝나면 이 화면에 자동으로 나타납니다.</p>}
           </div>
         )}
 

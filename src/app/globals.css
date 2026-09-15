@@ -1029,6 +1029,12 @@ a.page-link:hover {
 .page-link.disabled {
   opacity: 0.3;
 }
+.page-gap {
+  min-width: 22px;
+  text-align: center;
+  color: var(--muted);
+  user-select: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {

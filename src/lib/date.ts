@@ -24,6 +24,25 @@ export function formatKst(iso: string | null | undefined, withTime = true): stri
   }).format(d);
 }
 
+/** "2026. 09. 15. 업로드 12:41" - 날짜와 시각 사이에 라벨을 끼워 넣는다 */
+export function formatKstWithLabel(iso: string | null | undefined, timeLabel: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const date = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+  const time = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return `${date} ${timeLabel} ${time}`;
+}
+
 export function shiftDate(yyyyMmDd: string, days: number): string {
   const [y, m, d] = yyyyMmDd.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getVideoByYoutubeId } from "@/lib/queries";
-import { formatDuration, formatKst, timestampToSeconds } from "@/lib/date";
+import { formatDuration, formatKstWithLabel, timestampToSeconds } from "@/lib/date";
 import { watchUrl } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
@@ -44,8 +44,8 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
               ? <Link href={`/c/${video.channel_id}`}>{video.channel_title}</Link>
               : <span>{video.channel_title}</span>
           )}
-          {video.duration_sec ? <> · {formatDuration(video.duration_sec)}</> : null}
-          {video.published_at ? <> · 게시 {formatKst(video.published_at)}</> : null}
+          {video.duration_sec ? <> · 영상 {formatDuration(video.duration_sec)}</> : null}
+          {video.published_at ? <> · 게시 {formatKstWithLabel(video.published_at, "업로드")}</> : null}
           {" · "}<a href={watchUrl(youtubeId)} target="_blank" rel="noreferrer">유튜브에서 보기</a>
         </p>
 
@@ -103,7 +103,7 @@ export default async function VideoPage({ params, searchParams }: PageProps<"/v/
               </>
             )}
 
-            <p className="muted">요약 {formatKst(video.summaries?.created_at)}</p>
+            <p className="muted">요약 {formatKstWithLabel(video.summaries?.created_at, "작성일")}</p>
           </div>
         )}
     </div>

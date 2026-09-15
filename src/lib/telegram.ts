@@ -1,5 +1,5 @@
 import { env } from "./env";
-import { formatDuration, formatKst, timestampToSeconds } from "./date";
+import { formatDuration, formatKstWithLabel, timestampToSeconds } from "./date";
 import { watchUrl } from "./youtube";
 import type { SummaryContent, VideoRow } from "./supabase";
 
@@ -82,8 +82,8 @@ export function formatSummaryMessage(video: VideoRow, c: SummaryContent): string
   lines.push(`🎬 <b><a href="${watchUrl(id)}">${title}</a></b>`);
   const metaBits = [
     video.channel_title ? escapeHtml(video.channel_title) : null,
-    video.duration_sec ? formatDuration(video.duration_sec) : null,
-    video.published_at ? `게시 ${formatKst(video.published_at)}` : null,
+    video.duration_sec ? `영상 ${formatDuration(video.duration_sec)}` : null,
+    video.published_at ? `게시 ${formatKstWithLabel(video.published_at, "업로드")}` : null,
   ].filter(Boolean);
   if (metaBits.length) lines.push(metaBits.join(" · "));
   lines.push("");

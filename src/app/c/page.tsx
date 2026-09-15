@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listChannels } from "@/lib/queries";
-import { formatKst } from "@/lib/date";
+import { formatKst, formatTimeWindow } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "채널" };
@@ -9,6 +9,7 @@ const ERRORS: Record<string, string> = {
   token: "등록 토큰이 올바르지 않습니다.",
   owner: "서버에 오너 chat_id 가 설정되어 있지 않습니다.",
   notfound: "채널을 찾지 못했습니다.",
+  window: "시간대를 인식하지 못했습니다. 07:00-09:00 형식으로 입력하세요.",
   server: "처리 중 오류가 발생했습니다.",
 };
 
@@ -26,7 +27,10 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
   return (
     <>
       <h1>구독 채널</h1>
-      <p className="muted">여기서 추가한 채널의 새 영상은 오너 텔레그램으로 전송됩니다. 텔레그램 봇의 /subscribe 와 동일합니다.</p>
+      <p className="muted">
+        여기서 추가한 채널의 새 영상은 오너 텔레그램으로 전송됩니다. 텔레그램 봇의 /subscribe 와 동일합니다.
+        요약 시간대를 지정하면 그 시간(KST)에 올라온 영상만 요약합니다.
+      </p>
 
       {error && <p className="error">{error}</p>}
       {ok === "subscribed" && (
@@ -37,12 +41,19 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
       {ok === "unsubscribed" && (
         <div className="notice"><p>🗑 <b>{title}</b> 구독을 해지했습니다.</p></div>
       )}
+      {ok === "window" && (
+        <div className="notice"><p>⏱ <b>{title}</b> 의 요약 시간대를 변경했습니다.</p></div>
+      )}
 
       <form className="register inline" method="post" action="/api/channels">
         <input type="hidden" name="action" value="subscribe" />
         <label>
           채널 추가
           <input name="input" type="text" placeholder="@핸들, 채널 URL, 또는 그 채널 영상 URL" required />
+        </label>
+        <label className="narrow">
+          요약 시간대 (선택)
+          <input name="window" type="text" placeholder="07:00-09:00 · 비우면 전체" pattern="\s*\d{1,2}:?\d{0,2}\s*[-~]\s*\d{1,2}:?\d{0,2}\s*" />
         </label>
         <button type="submit">구독</button>
       </form>
@@ -55,6 +66,7 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
             <thead>
               <tr>
                 <th>채널</th>
+                <th>요약 시간대</th>
                 <th>요약</th>
                 <th>구독자</th>
                 <th>마지막 확인</th>
@@ -68,6 +80,25 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/c">) {
                   <td>
                     <Link href={`/c/${c.channel_id}`}>{c.title}</Link>
                     {c.handle && <span className="muted"> {c.handle}</span>}
+                  </td>
+                  <td>
+                    <form method="post" action="/api/channels" className="window-form">
+                      <input type="hidden" name="action" value="window" />
+                      <input type="hidden" name="channel_id" value={c.channel_id} />
+                      <input
+                        name="window"
+                        type="text"
+                        className="window-input"
+                        defaultValue={
+                          c.window_start_min !== null && c.window_end_min !== null
+                            ? formatTimeWindow(c.window_start_min, c.window_end_min)
+                            : ""
+                        }
+                        placeholder="전체"
+                        aria-label={`${c.title} 요약 시간대`}
+                      />
+                      <button type="submit" className="btn-small">저장</button>
+                    </form>
                   </td>
                   <td>{c.videoCount}</td>
                   <td>{c.subscribers}</td>

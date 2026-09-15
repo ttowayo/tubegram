@@ -1,4 +1,5 @@
 import { db, type ChannelRow } from "./supabase";
+import { withinTimeWindow } from "./date";
 import { fetchChannelUploads, type FeedEntry } from "./youtube";
 import { enqueueVideo, processQueue } from "./pipeline";
 
@@ -39,12 +40,13 @@ export async function pollChannels(budgetMs?: number): Promise<PollResult> {
   return { channels: checked, enqueued, processed, stopped, errors };
 }
 
-/** 기준선 이후에 게시되었고 DB 에 없는 항목만 큐에 추가 */
+/** 기준선 이후에 게시되고, 채널의 요약 시간대에 들며, DB 에 없는 항목만 큐에 추가 */
 export async function enqueueNewEntries(ch: ChannelRow, entries: FeedEntry[]): Promise<number> {
   const baseline = Date.parse(ch.baseline_published_at);
   const fresh = entries.filter((e) => {
     const t = Date.parse(e.publishedAt);
-    return Number.isFinite(t) && t > baseline;
+    if (!Number.isFinite(t) || t <= baseline) return false;
+    return withinTimeWindow(e.publishedAt, ch.window_start_min, ch.window_end_min);
   });
   if (fresh.length === 0) return 0;
 

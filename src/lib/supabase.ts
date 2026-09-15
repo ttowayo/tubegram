@@ -19,6 +19,9 @@ export interface ChannelRow {
   thumbnail_url: string | null;
   uploads_playlist_id: string | null;
   baseline_published_at: string;
+  /** 요약 시간대 필터: KST 자정 기준 분, [start, end). 둘 다 null 이면 전체 */
+  window_start_min: number | null;
+  window_end_min: number | null;
   last_checked_at: string | null;
   websub_lease_expires_at: string | null;
   is_active: boolean;

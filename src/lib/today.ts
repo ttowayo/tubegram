@@ -1,5 +1,5 @@
 import { db, type ChannelRow } from "./supabase";
-import { kstDate } from "./date";
+import { kstDate, withinTimeWindow } from "./date";
 import { fetchChannelUploads } from "./youtube";
 import { deliverSummary, enqueueVideo, getSummary } from "./pipeline";
 
@@ -45,7 +45,11 @@ export async function queueTodayUploads(channels: ChannelRow[], requestedByChatI
       result.channels.push({ channelId: ch.channel_id, title: ch.title, count: 0, error: e instanceof Error ? e.message : String(e) });
       continue;
     }
-    const todays = entries.filter((e) => kstDate(new Date(e.publishedAt)) === date);
+    const todays = entries.filter(
+      (e) =>
+        kstDate(new Date(e.publishedAt)) === date &&
+        withinTimeWindow(e.publishedAt, ch.window_start_min, ch.window_end_min),
+    );
     if (todays.length === 0) continue;
 
     for (const e of todays) {

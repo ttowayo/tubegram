@@ -951,6 +951,30 @@ form.register.inline button {
 .inline-form {
   display: inline;
 }
+form.register.inline label.narrow {
+  flex: 0 1 190px;
+}
+
+/* 표 안에서 채널별 요약 시간대를 바로 고치는 칸 */
+.window-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.window-input {
+  width: 104px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+.window-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
 .btn-small {
   padding: 4px 11px;

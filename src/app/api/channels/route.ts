@@ -1,13 +1,15 @@
 import { env } from "@/lib/env";
 import { redirectWithAuth, siteAuthorized } from "@/lib/auth";
-import { ChannelError, ensureChat, subscribeChannel, unsubscribeChannel } from "@/lib/channels";
+import { ChannelError, ensureChat, setChannelWindow, subscribeChannel, unsubscribeChannel } from "@/lib/channels";
+import { parseTimeWindow, type TimeWindow } from "@/lib/date";
 
 export const maxDuration = 60;
 
 /**
  * 사이트에서 채널 구독/해지. form 또는 JSON.
- *   action=subscribe   input=@핸들|URL
+ *   action=subscribe   input=@핸들|URL  [window=07:00-09:00]
  *   action=unsubscribe channel_id=UC...
+ *   action=window      channel_id=UC... window=07:00-09:00 (비우면 해제)
  * 인증: token 필드 또는 쿠키 (성공 시 쿠키 저장)
  */
 export async function POST(req: Request) {
@@ -35,7 +37,27 @@ export async function POST(req: Request) {
   await ensureChat(owner, "owner");
 
   const action = body.action ?? "subscribe";
+
+  // 빈 값이면 undefined = 시간대를 건드리지 않음. 형식이 틀리면 에러
+  const rawWindow = (body.window ?? "").trim();
+  let window: TimeWindow | null | undefined;
+  if (rawWindow) {
+    window = parseTimeWindow(rawWindow);
+    if (!window) {
+      return isForm ? redirectWithAuth(req, "/c?error=window", setCookie) : Response.json({ error: "invalid window" }, { status: 400 });
+    }
+  }
+
   try {
+    if (action === "window") {
+      const channelId = body.channel_id ?? "";
+      const ch = await setChannelWindow(channelId, window ?? null);
+      if (!ch) return isForm ? redirectWithAuth(req, "/c?error=notfound", setCookie) : Response.json({ error: "channel not found" }, { status: 404 });
+      return isForm
+        ? redirectWithAuth(req, `/c?ok=window&title=${encodeURIComponent(ch.title)}`, setCookie)
+        : Response.json({ ok: true, action, channel: ch });
+    }
+
     if (action === "unsubscribe") {
       const channelId = body.channel_id ?? "";
       const ch = await unsubscribeChannel(owner, channelId);
@@ -45,7 +67,7 @@ export async function POST(req: Request) {
         : Response.json({ ok: true, action, channel: ch });
     }
 
-    const r = await subscribeChannel(owner, body.input ?? "");
+    const r = await subscribeChannel(owner, body.input ?? "", window);
     return isForm
       ? redirectWithAuth(req, `/c?ok=subscribed&title=${encodeURIComponent(r.channel.title)}&push=${r.pushed ? 1 : 0}`, setCookie)
       : Response.json({ ok: true, action, ...r });

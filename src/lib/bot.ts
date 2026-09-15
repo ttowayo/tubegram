@@ -1,6 +1,6 @@
 import { env } from "./env";
 import { db, type ChannelRow } from "./supabase";
-import { kstDate, formatKst } from "./date";
+import { kstDate, formatKst, formatTimeWindow, parseTimeWindow, type TimeWindow } from "./date";
 import { escapeHtml, sendMessage, formatSummaryMessage, type TelegramUpdate } from "./telegram";
 import { extractVideoId, fetchChannelUploads, parseChannelRef, resolveChannel } from "./youtube";
 import { enqueueVideo, getSummary } from "./pipeline";
@@ -11,7 +11,7 @@ const HELP = `<b>tubegram 봇 사용법</b>
 
 유튜브 URL 을 보내면 바로 요약합니다.
 
-/subscribe &lt;채널&gt; - 채널 구독 (새 영상 자동 요약)
+/subscribe &lt;채널&gt; [시간대] - 채널 구독 (새 영상 자동 요약)
 /unsubscribe &lt;채널&gt; - 구독 해지
 /list - 구독 목록
 /latest &lt;채널&gt; - 채널 최신 영상 1편 요약
@@ -20,7 +20,38 @@ const HELP = `<b>tubegram 봇 사용법</b>
 /resume - 알림 재개
 /status - 큐/사용량 현황
 
-채널은 @핸들, 채널 URL, 채널 ID, 또는 그 채널 영상 URL 로 지정할 수 있습니다.`;
+채널은 @핸들, 채널 URL, 채널 ID, 또는 그 채널 영상 URL 로 지정할 수 있습니다.
+
+<b>시간대 필터</b>
+/subscribe @채널 07:00-09:00 처럼 뒤에 시간을 붙이면 그 시간(KST)에 올라온 영상만 요약합니다.
+자정을 넘겨도 됩니다 (22:00-02:00). 구독 중인 채널에 다시 쓰면 시간대만 바뀌고,
+/subscribe @채널 종일 로 해제합니다.`;
+
+const WINDOW_OFF = ["종일", "전체", "해제", "all", "off"];
+
+/** 인자 끝에 붙은 시간대를 떼어낸다. window 가 undefined 면 변경 없음, null 이면 해제 */
+function splitWindowArg(arg: string): { ref: string; window?: TimeWindow | null } {
+  const parts = arg.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return { ref: arg.trim() };
+  const last = parts[parts.length - 1];
+  const ref = parts.slice(0, -1).join(" ");
+
+  if (WINDOW_OFF.includes(last.toLowerCase())) return { ref, window: null };
+  const window = parseTimeWindow(last);
+  if (window) return { ref, window };
+  // 시간대처럼 생겼는데 못 읽으면 채널 이름의 일부로 넘기지 않고 알려준다
+  if (/^[\d:]+\s*[-~]\s*[\d:]+$/.test(last)) {
+    throw new ChannelError(`시간대를 인식하지 못했습니다: ${last}\n07:00-09:00 형식으로 입력하세요.`);
+  }
+  return { ref: arg.trim() };
+}
+
+/** 채널 행의 시간대를 사람이 읽는 한 줄로 */
+function windowLabel(c: ChannelRow): string | null {
+  return c.window_start_min !== null && c.window_end_min !== null
+    ? formatTimeWindow(c.window_start_min, c.window_end_min)
+    : null;
+}
 
 /** 텔레그램 업데이트 처리. process=true 면 호출자가 큐 처리를 트리거해야 함 */
 export async function handleUpdate(update: TelegramUpdate): Promise<{ process: boolean }> {
@@ -111,24 +142,29 @@ async function manualUrl(chatId: number, text: string): Promise<boolean> {
 
 async function subscribe(chatId: number, arg: string): Promise<void> {
   if (!arg) {
-    await sendMessage(chatId, "사용법: /subscribe @채널핸들 또는 채널 URL");
+    await sendMessage(chatId, "사용법: /subscribe @채널핸들 [07:00-09:00]");
     return;
   }
   let r;
   try {
-    r = await subscribeChannel(chatId, arg);
+    const { ref, window } = splitWindowArg(arg);
+    r = await subscribeChannel(chatId, ref, window);
   } catch (e) {
     if (e instanceof ChannelError) {
-      await sendMessage(chatId, e.message);
+      await sendMessage(chatId, escapeHtml(e.message));
       return;
     }
     throw e;
   }
   const { channel, pushed } = r;
+  const win = windowLabel(channel);
+  const body = win
+    ? `KST <b>${win}</b> 에 올라온 새 영상만 요약해서 보내드립니다.`
+    : "이후 올라오는 새 영상을 요약해서 보내드립니다.";
   await sendMessage(
     chatId,
     `✅ 구독: <b>${escapeHtml(channel.title)}</b>${channel.handle ? ` (${escapeHtml(channel.handle)})` : ""}\n` +
-      `이후 올라오는 새 영상을 요약해서 보내드립니다.${pushed ? "" : "\n(15분 주기 확인)"}`,
+      `${body}${pushed ? "" : "\n(15분 주기 확인)"}`,
     { disablePreview: true },
   );
 }
@@ -173,10 +209,12 @@ async function list(chatId: number): Promise<void> {
   }
   const lines = channels.map((c, i) => {
     const handle = c.handle ? ` ${escapeHtml(c.handle)}` : "";
+    const win = windowLabel(c);
+    const window = win ? ` · ⏱ ${win}` : "";
     const checked = c.last_checked_at ? ` · 확인 ${formatKst(c.last_checked_at)}` : "";
-    return `${i + 1}. <a href="https://www.youtube.com/channel/${c.channel_id}">${escapeHtml(c.title)}</a>${handle}${checked}`;
+    return `${i + 1}. <a href="https://www.youtube.com/channel/${c.channel_id}">${escapeHtml(c.title)}</a>${handle}${window}${checked}`;
   });
-  await sendMessage(chatId, `<b>구독 채널 (${channels.length})</b>\n${lines.join("\n")}\n\n해지: /unsubscribe 번호`, { disablePreview: true });
+  await sendMessage(chatId, `<b>구독 채널 (${channels.length})</b>\n${lines.join("\n")}\n\n해지: /unsubscribe 번호\n시간대 변경: /subscribe @채널 07:00-09:00`, { disablePreview: true });
 }
 
 async function latest(chatId: number, arg: string): Promise<boolean> {

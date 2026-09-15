@@ -15,11 +15,18 @@ create table if not exists channels (
   thumbnail_url           text,
   uploads_playlist_id     text,
   baseline_published_at   timestamptz not null default now(),
+  window_start_min        integer,
+  window_end_min          integer,
   last_checked_at         timestamptz,
   websub_lease_expires_at timestamptz,
   is_active               boolean not null default true,
   created_at              timestamptz not null default now()
 );
+
+-- 요약 시간대 필터 (KST 자정 기준 분, [start, end), 둘 다 null 이면 전체).
+-- 기존 DB 를 위한 추가. 새로 만드는 경우엔 위 create 에 이미 들어 있다.
+alter table channels add column if not exists window_start_min integer;
+alter table channels add column if not exists window_end_min   integer;
 
 create table if not exists subscriptions (
   chat_id     bigint not null references chats(chat_id) on delete cascade,

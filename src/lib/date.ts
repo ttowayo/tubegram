@@ -94,3 +94,61 @@ export function monthGrid(month: string): (string | null)[] {
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 }
+
+export interface TimeWindow {
+  startMin: number;
+  endMin: number;
+}
+
+/** KST 기준 자정부터 지난 분 (0~1439) */
+export function kstMinuteOfDay(d: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: KST,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  return get("hour") * 60 + get("minute");
+}
+
+const WINDOW_RE = /^(\d{1,2})(?::?(\d{2}))?\s*[-~]\s*(\d{1,2})(?::?(\d{2}))?$/;
+
+/** "07:00-09:00" | "0700-0900" | "7-9" | "22:00~02:00" -> KST 분 구간. 인식 실패 시 null */
+export function parseTimeWindow(s: string): TimeWindow | null {
+  const m = WINDOW_RE.exec(s.trim());
+  if (!m) return null;
+  const toMin = (h: string, mm?: string) => {
+    const hour = Number(h);
+    const min = Number(mm ?? "0");
+    if (hour > 24 || min > 59) return null;
+    const total = hour * 60 + min;
+    return total > 1440 ? null : total % 1440; // 24:00 == 00:00
+  };
+  const startMin = toMin(m[1], m[2]);
+  const endMin = toMin(m[3], m[4]);
+  if (startMin === null || endMin === null || startMin === endMin) return null;
+  return { startMin, endMin };
+}
+
+/** 분 구간을 "07:00-09:00" 으로. 끝이 자정이면 24:00 으로 적어 구간을 알아보기 쉽게 한다 */
+export function formatTimeWindow(startMin: number, endMin: number): string {
+  const hhmm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  return `${hhmm(startMin)}-${hhmm(endMin === 0 ? 1440 : endMin)}`;
+}
+
+/**
+ * iso 시각이 KST 기준 [start, end) 안에 드는지.
+ * 구간이 없으면(null) 항상 true, start > end 면 자정을 넘는 구간으로 본다.
+ */
+export function withinTimeWindow(
+  iso: string | null | undefined,
+  startMin: number | null,
+  endMin: number | null,
+): boolean {
+  if (startMin === null || endMin === null) return true;
+  const t = Date.parse(iso ?? "");
+  if (!Number.isFinite(t)) return false;
+  const m = kstMinuteOfDay(new Date(t));
+  return startMin < endMin ? m >= startMin && m < endMin : m >= startMin || m < endMin;
+}

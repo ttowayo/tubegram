@@ -1,4 +1,5 @@
 import { db, type ChannelRow } from "./supabase";
+import type { TimeWindow } from "./date";
 import { fetchChannelUploads, parseChannelRef, resolveChannel } from "./youtube";
 import { websubRequest } from "./websub";
 
@@ -17,8 +18,15 @@ export async function ensureChat(chatId: number, name: string | null): Promise<v
   if (!data) await s.from("chats").insert({ chat_id: chatId, name });
 }
 
-/** @핸들 / 채널 URL / 채널 ID / 영상 URL 로 채널을 찾아 chat 에 구독 등록 */
-export async function subscribeChannel(chatId: number, input: string): Promise<SubscribeResult> {
+/**
+ * @핸들 / 채널 URL / 채널 ID / 영상 URL 로 채널을 찾아 chat 에 구독 등록.
+ * window 는 요약할 업로드 시간대: undefined 면 기존 설정을 그대로 두고, null 이면 해제한다.
+ */
+export async function subscribeChannel(
+  chatId: number,
+  input: string,
+  window?: TimeWindow | null,
+): Promise<SubscribeResult> {
   const ref = parseChannelRef(input);
   if (!ref) throw new ChannelError("채널을 인식하지 못했습니다. @핸들이나 채널 URL 을 입력하세요.");
   const info = await resolveChannel(ref);
@@ -47,6 +55,8 @@ export async function subscribeChannel(chatId: number, input: string): Promise<S
         thumbnail_url: info.thumbnailUrl,
         uploads_playlist_id: info.uploadsPlaylistId,
         baseline_published_at: baseline,
+        window_start_min: window?.startMin ?? null,
+        window_end_min: window?.endMin ?? null,
         is_active: true,
       })
       .select()
@@ -54,9 +64,22 @@ export async function subscribeChannel(chatId: number, input: string): Promise<S
     if (error) throw new Error(error.message);
     channel = data as ChannelRow;
     created = true;
-  } else if (!channel.is_active) {
-    await s.from("channels").update({ is_active: true, baseline_published_at: new Date().toISOString() }).eq("id", channel.id);
-    channel = { ...channel, is_active: true };
+  } else {
+    const patch: Record<string, unknown> = {};
+    if (!channel.is_active) {
+      patch.is_active = true;
+      patch.baseline_published_at = new Date().toISOString();
+    }
+    // 이미 구독 중인 채널에 다시 /subscribe 하면 시간대만 바꾼다
+    if (window !== undefined) {
+      patch.window_start_min = window?.startMin ?? null;
+      patch.window_end_min = window?.endMin ?? null;
+    }
+    if (Object.keys(patch).length > 0) {
+      const { data, error } = await s.from("channels").update(patch).eq("id", channel.id).select().single();
+      if (error) throw new Error(error.message);
+      channel = data as ChannelRow;
+    }
   }
 
   const { error: subErr } = await s
@@ -66,6 +89,18 @@ export async function subscribeChannel(chatId: number, input: string): Promise<S
 
   const pushed = await websubRequest(channel.channel_id, "subscribe");
   return { channel, created, pushed };
+}
+
+/** 채널의 요약 시간대만 변경. null 이면 해제 (전체 요약) */
+export async function setChannelWindow(channelId: string, window: TimeWindow | null): Promise<ChannelRow | null> {
+  const { data, error } = await db()
+    .from("channels")
+    .update({ window_start_min: window?.startMin ?? null, window_end_min: window?.endMin ?? null })
+    .eq("channel_id", channelId)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as ChannelRow | null) ?? null;
 }
 
 /** 구독 해지. 마지막 구독자였으면 채널 비활성화 + WebSub 해지 */

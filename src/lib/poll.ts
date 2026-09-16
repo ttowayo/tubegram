@@ -1,17 +1,18 @@
 import { db, type ChannelRow } from "./supabase";
 import { withinTimeWindow } from "./date";
 import { fetchChannelUploads, type FeedEntry } from "./youtube";
-import { enqueueVideo, processQueue } from "./pipeline";
+import { enqueueVideo, processQueue, requeueFinishedLives } from "./pipeline";
 
 export interface PollResult {
   channels: number;
   enqueued: number;
+  requeued: number;
   processed: number;
   stopped: string | null;
   errors: string[];
 }
 
-/** 구독 중인 채널의 RSS 를 읽어 새 영상을 큐에 넣고, 큐를 처리 */
+/** 구독 중인 채널의 RSS 를 읽어 새 영상을 큐에 넣고, 끝난 라이브를 되살린 뒤 큐를 처리 */
 export async function pollChannels(budgetMs?: number): Promise<PollResult> {
   const s = db();
   const { data: channels } = await s.from("channels").select("*").eq("is_active", true);
@@ -36,8 +37,17 @@ export async function pollChannels(budgetMs?: number): Promise<PollResult> {
     }
   }
 
+  let requeued = 0;
+  try {
+    requeued = await requeueFinishedLives();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(`requeue: ${msg}`);
+    console.error("[poll] requeue failed:", msg);
+  }
+
   const { processed, stopped } = await processQueue(budgetMs);
-  return { channels: checked, enqueued, processed, stopped, errors };
+  return { channels: checked, enqueued, requeued, processed, stopped, errors };
 }
 
 /** 기준선 이후에 게시되고, 채널의 요약 시간대에 들며, DB 에 없는 항목만 큐에 추가 */

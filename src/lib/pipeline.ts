@@ -9,6 +9,12 @@ const STALE_LOCK_MIN = 15;
 const MAX_ATTEMPTS = 3;
 const UNKNOWN_DURATION_SEC = 600;
 
+/** 나중에 끝나면 다시 요약할 수 있는 skip 사유 */
+const SKIP_UPCOMING = "예정된 라이브/프리미어";
+const SKIP_LIVE = "진행 중인 라이브";
+/** 이보다 오래된 라이브는 다시 확인하지 않는다 (삭제/비공개로 영영 안 끝나는 항목 제외) */
+const LIVE_RECHECK_DAYS = 7;
+
 export interface EnqueueArgs {
   youtubeId: string;
   source: VideoSource;
@@ -59,6 +65,53 @@ export async function enqueueVideo(a: EnqueueArgs): Promise<{ video: VideoRow; c
     throw new Error(`insert video failed: ${error.message}`);
   }
   return { video: data as VideoRow, created: true };
+}
+
+/**
+ * 라이브/프리미어라서 건너뛴 항목 중 방송이 끝난 것을 다시 큐에 넣는다.
+ * RSS 푸시는 방송이 예약되는 순간 오므로 그때는 길이도 내용도 없다. 끝난 뒤 한 번 더 봐야 요약할 수 있다.
+ * 아직 진행 중이거나 조회되지 않는 항목은 그대로 두고 다음 폴링에서 다시 본다.
+ */
+export async function requeueFinishedLives(limit = 20): Promise<number> {
+  const s = db();
+  const since = new Date(Date.now() - LIVE_RECHECK_DAYS * 86_400_000).toISOString();
+  const { data } = await s
+    .from("videos")
+    .select("id, youtube_id")
+    .eq("status", "skipped")
+    .in("error", [SKIP_UPCOMING, SKIP_LIVE])
+    .gte("published_at", since)
+    .order("published_at", { ascending: false })
+    .limit(limit);
+
+  const rows = (data ?? []) as Pick<VideoRow, "id" | "youtube_id">[];
+  if (rows.length === 0) return 0;
+
+  const details = await fetchVideoDetails(rows.map((r) => r.youtube_id));
+  let n = 0;
+  for (const r of rows) {
+    const d = details.get(r.youtube_id);
+    // 길이가 잡혀야 방송이 실제로 끝난 것
+    if (!d || d.liveBroadcastContent !== "none" || !d.durationSec) continue;
+    const { data: updated } = await s
+      .from("videos")
+      .update({
+        status: "pending",
+        attempts: 0,
+        error: null,
+        locked_at: null,
+        title: d.title ?? undefined,
+        duration_sec: d.durationSec,
+        updated_at: now(),
+      })
+      .eq("id", r.id)
+      .eq("status", "skipped")
+      .select("id")
+      .maybeSingle();
+    if (updated) n++;
+  }
+  if (n > 0) console.log(`[pipeline] requeued ${n} finished live(s)`);
+  return n;
 }
 
 /** pending 또는 오래된 processing 항목을 하나 잠그고 반환 */
@@ -205,8 +258,8 @@ async function enrich(video: VideoRow): Promise<{ video: VideoRow; liveBroadcast
 }
 
 async function shouldSkip(video: VideoRow, live: string): Promise<string | null> {
-  if (live === "upcoming") return "예정된 라이브/프리미어";
-  if (live === "live") return "진행 중인 라이브";
+  if (live === "upcoming") return SKIP_UPCOMING;
+  if (live === "live") return SKIP_LIVE;
   const dur = video.duration_sec;
   if (dur && dur > env.maxVideoMinutes * 60) return `영상 길이 초과 (${Math.round(dur / 60)}분 > ${env.maxVideoMinutes}분)`;
   if (video.source === "channel") {
